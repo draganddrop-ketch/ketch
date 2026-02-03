@@ -4,11 +4,12 @@ import { Trash2, ShoppingBag, X, ZoomIn } from 'lucide-react';
 import { useSiteSettings } from '../context/SiteSettingsContext';
 import { useCart } from '../context/CartContext';
 import { Header } from '../components/Header';
+import { CanvasPreview } from '../components/CanvasPreview';
 
 export const Cart = () => {
   const { settings } = useSiteSettings();
   const { cartItems, removeFromCart, getTotalPrice } = useCart();
-  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [zoomedItem, setZoomedItem] = useState<any | null>(null);
   const primaryColor = settings?.primary_color || '#34d399';
 
   const subtotal = getTotalPrice();
@@ -28,57 +29,39 @@ export const Cart = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
             {cartItems.length === 0 ? (
-              <div className="bg-zinc-900 border border-white/30 p-8 text-center">
-                <div className="text-zinc-500 text-lg mb-4">Your cart is empty</div>
-                <p className="text-zinc-600 text-sm mb-6">
-                  Build your custom keyring on the builder page
-                </p>
-                <Link
-                  to="/"
-                  className="inline-block bg-cyan-400 text-black font-bold py-3 px-8 uppercase tracking-wide hover:bg-cyan-300 transition-colors"
-                >
+              <div className="bg-zinc-900 border border-white/30 p-8 text-center text-zinc-500">
+                Your cart is empty <br />
+                <Link to="/" className="inline-block mt-4 bg-cyan-400 text-black font-bold py-2 px-6 uppercase hover:bg-cyan-300">
                   Start Building
                 </Link>
               </div>
             ) : (
               <div className="space-y-4">
                 {cartItems.map((item) => {
-                  if (!item || typeof item.price !== 'number' || !item.name || !item.id) {
-                    console.warn('Invalid cart item:', item);
-                    return null;
-                  }
+                  if (!item || !item.id) return null;
+                  const itemHeight = item.canvasHeight || 700;
                   return (
-                    <div
-                      key={item.id}
-                      className="bg-zinc-900 border border-white/30 p-6 flex gap-6"
-                    >
+                    <div key={item.id} className="bg-zinc-900 border border-white/30 p-6 flex gap-6">
                       <div
                         className="w-32 h-32 bg-zinc-950 border border-white/20 flex-shrink-0 overflow-hidden relative group cursor-pointer"
-                        onClick={() => setZoomedImage(item.image)}
+                        onClick={() => setZoomedItem(item)}
                       >
-                        <img
-                          src={item.image}
-                          alt={item.name}
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        {/* 썸네일: 작게 축소해서(customScale) 전체 모습 보여주기 */}
+                        {item.items && item.items.length > 0 ? (
+                          <CanvasPreview items={item.items} customScale={0.15} canvasHeight={itemHeight} />
+                        ) : (
+                          <img src={item.image} className="w-full h-full object-cover" />
+                        )}
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                           <ZoomIn size={24} className="text-white" />
                         </div>
                       </div>
                       <div className="flex-1">
-                        <h3 className="text-white font-bold text-lg mb-2">{item.name}</h3>
-                        <p className="text-zinc-400 text-sm mb-3">
-                          {item.items?.length || 0} item{(item.items?.length || 0) !== 1 ? 's' : ''} included
-                        </p>
-                        <div className="text-cyan-400 font-bold text-xl">
-                          ₩{item.price.toLocaleString()}
-                        </div>
+                        <h3 className="text-white font-bold text-lg">{item.name}</h3>
+                        <p className="text-zinc-400 text-sm">{item.items?.length || 0} items</p>
+                        <div className="text-cyan-400 font-bold text-xl">₩{item.price.toLocaleString()}</div>
                       </div>
-                      <button
-                        onClick={() => removeFromCart(item.id)}
-                        className="text-red-400 hover:text-red-300 transition-colors self-start"
-                        title="Remove from cart"
-                      >
+                      <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-300 self-start">
                         <Trash2 size={20} />
                       </button>
                     </div>
@@ -87,34 +70,17 @@ export const Cart = () => {
               </div>
             )}
           </div>
-
           <div className="lg:col-span-1">
             <div className="bg-zinc-900 border border-white/30 p-6 sticky top-6">
-              <h3 className="text-xl font-bold text-white uppercase tracking-wide mb-6">Order Summary</h3>
-
-              <div className="space-y-3 mb-6">
-                <div className="flex justify-between text-zinc-400">
-                  <span>Subtotal</span>
-                  <span>₩{subtotal.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-zinc-400">
-                  <span>Shipping</span>
-                  <span>₩{shipping.toLocaleString()}</span>
-                </div>
+              <h3 className="text-xl font-bold text-white uppercase mb-6">Order Summary</h3>
+              <div className="space-y-3 mb-6 text-zinc-400">
+                <div className="flex justify-between"><span>Subtotal</span><span>₩{subtotal.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span>Shipping</span><span>₩{shipping.toLocaleString()}</span></div>
                 <div className="border-t border-white/30 pt-3 flex justify-between text-white font-bold text-lg">
-                  <span>Total</span>
-                  <span style={{ color: primaryColor }}>₩{total.toLocaleString()}</span>
+                  <span>Total</span><span style={{ color: primaryColor }}>₩{total.toLocaleString()}</span>
                 </div>
               </div>
-
-              <button
-                disabled={cartItems.length === 0}
-                className={`w-full font-bold py-3 uppercase tracking-wide transition-colors ${
-                  cartItems.length === 0
-                    ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
-                    : 'bg-cyan-400 text-black hover:bg-cyan-300'
-                }`}
-              >
+              <button disabled={cartItems.length === 0} className="w-full font-bold py-3 uppercase bg-cyan-400 text-black hover:bg-cyan-300 disabled:bg-zinc-700 disabled:text-zinc-500">
                 Checkout
               </button>
             </div>
@@ -122,24 +88,43 @@ export const Cart = () => {
         </div>
       </div>
 
-      {zoomedImage && (
+      {/* ★ 확대 모달 수정됨 */}
+      {zoomedItem && (
         <div
           className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-8"
-          onClick={() => setZoomedImage(null)}
+          onClick={() => setZoomedItem(null)}
         >
           <button
-            onClick={() => setZoomedImage(null)}
-            className="absolute top-6 right-6 text-white hover:text-cyan-400 transition-colors z-10"
+            onClick={() => setZoomedItem(null)}
+            className="absolute top-6 right-6 text-white hover:text-cyan-400 z-10"
           >
             <X size={32} />
           </button>
-          <div className="flex items-center justify-center max-w-[800px] max-h-[80vh]">
-            <img
-              src={zoomedImage}
-              alt="Zoomed canvas"
-              className="w-auto h-auto max-w-[800px] max-h-[80vh] object-contain bg-black border border-zinc-800 rounded-lg shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            />
+
+          {/* 컨테이너: overflow-y-auto 추가 (높이가 화면보다 크면 스크롤 생김 -> 잘림 방지) */}
+          <div 
+            className="relative bg-[#09090b] border border-zinc-800 rounded-lg shadow-2xl overflow-y-auto max-h-[90vh] custom-scrollbar"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 내부 박스: 저장된 높이(canvasHeight) 그대로 적용 */}
+            <div 
+              style={{ 
+                width: '450px', 
+                height: `${zoomedItem.canvasHeight || 700}px` 
+              }}
+              className="mx-auto"
+            >
+              {zoomedItem.items && zoomedItem.items.length > 0 ? (
+                // isThumbnail=false (원본 크기 1.0배)
+                <CanvasPreview 
+                  items={zoomedItem.items} 
+                  isThumbnail={false} 
+                  canvasHeight={zoomedItem.canvasHeight || 700} 
+                />
+              ) : (
+                <img src={zoomedItem.image} className="w-full h-full object-contain" />
+              )}
+            </div>
           </div>
         </div>
       )}

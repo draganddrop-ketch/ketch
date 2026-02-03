@@ -13,16 +13,16 @@ import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useSection } from '../context/SectionContext';
 import { useCanvas } from '../context/CanvasContext';
-import { Wrench } from 'lucide-react';
+import { Layers, X, Wrench } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
+// 인터페이스 정의
 interface CanvasItem extends KeyringItem {
   canvasId: string;
   x: number;
   y: number;
   rotation: number;
 }
-
 interface Category {
   id: string;
   name: string;
@@ -32,7 +32,6 @@ interface Category {
   included_categories?: string[];
   section: 'SHOP' | 'BUILDER';
 }
-
 interface SiteSettings {
   id: number;
   site_name: string;
@@ -63,16 +62,14 @@ export const Home = () => {
   const [viewMode, setViewMode] = useState<'HOME' | 'CATEGORY'>('HOME');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<KeyringItem | null>(null);
-
+  const [isMobileCanvasOpen, setIsMobileCanvasOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<KeyringItem[]>([]);
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    fetchAllData();
-  }, []);
+  useEffect(() => { fetchAllData(); }, []);
 
   useEffect(() => {
     setSelectedProduct(null);
@@ -85,73 +82,37 @@ export const Home = () => {
   }, [currentSection]);
 
   const fetchAllData = async () => {
-    await Promise.all([
-      fetchCategories(),
-      fetchProducts(),
-      fetchSettings()
-    ]);
+    await Promise.all([fetchCategories(), fetchProducts(), fetchSettings()]);
     setLoading(false);
   };
-
   const fetchSettings = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('site_settings')
-        .select('*')
-        .eq('id', 1)
-        .maybeSingle();
-
-      if (error) throw error;
-      setSettings(data);
-    } catch (err) {
-      console.error('Failed to fetch settings:', err);
-    }
+    const { data } = await supabase.from('site_settings').select('*').eq('id', 1).maybeSingle();
+    setSettings(data);
   };
-
   const fetchCategories = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('is_hidden', false)
-        .order('display_order', { ascending: true });
-
-      if (error) throw error;
-      setCategories(data || []);
-    } catch (err) {
-      console.error('Failed to fetch categories:', err);
-    }
+    const { data } = await supabase.from('categories').select('*').eq('is_hidden', false).order('display_order', { ascending: true });
+    setCategories(data || []);
   };
-
   const fetchProducts = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*');
-
-      if (error) throw error;
-
-      const formattedProducts: KeyringItem[] = data.map(item => ({
-        id: item.id,
-        name: item.name,
-        category: item.category,
-        menu_category: item.menu_category,
-        sub_category: item.sub_category,
-        price: item.price,
-        sale_price: item.sale_price,
-        status: item.status,
-        image: item.image_url,
-        description: data.description,
-        gallery_images: data.gallery_images,
-        is_best: item.is_best,
-        is_new: item.is_new,
-        category_ids: item.category_ids
-      }));
-
-      setProducts(formattedProducts);
-    } catch (err) {
-      console.error('Failed to fetch products:', err);
-    }
+    const { data } = await supabase.from('products').select('*');
+    if (!data) return;
+    const formattedProducts: KeyringItem[] = data.map(item => ({
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      menu_category: item.menu_category,
+      sub_category: item.sub_category,
+      price: item.price,
+      sale_price: item.sale_price,
+      status: item.status,
+      image: item.image_url || item.image || '',
+      description: item.description,
+      gallery_images: item.gallery_images,
+      is_best: item.is_best,
+      is_new: item.is_new,
+      category_ids: item.category_ids
+    }));
+    setProducts(formattedProducts);
   };
 
   const handleProductClick = (product: KeyringItem) => {
@@ -160,11 +121,47 @@ export const Home = () => {
   };
 
   const handleQuickAdd = (product: KeyringItem) => {
-    addItemToCanvas(product);
+    if (currentSection === 'SHOP') {
+      addToCart({
+        id: product.id,
+        name: product.name,
+        price: product.sale_price || product.price,
+        image: product.image,
+        quantity: 1,
+      });
+      alert('Added to Cart!');
+    } else {
+      addItemToCanvas(product);
+    }
   };
 
-  const handleCanvasItemsChange = (items: CanvasItem[]) => {
-    setCanvasItems(items);
+  const handleCanvasItemsChange = (items: CanvasItem[]) => setCanvasItems(items);
+
+  const captureCanvasSnapshot = async (): Promise<string | null> => {
+    const canvasElement = document.getElementById('canvas-drop-zone');
+    if (!canvasElement) return null;
+
+    try {
+      if (canvasBuilderRef.current) canvasBuilderRef.current.setCapturing(true);
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const canvasSnapshot = await html2canvas(canvasElement, {
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#09090b',
+        scale: 0.5,
+        logging: false,
+      });
+
+      const dataUrl = canvasSnapshot.toDataURL('image/jpeg', 0.7);
+
+      if (canvasBuilderRef.current) canvasBuilderRef.current.setCapturing(false);
+      return dataUrl;
+    } catch (error) {
+      console.error('Snapshot failed:', error);
+      if (canvasBuilderRef.current) canvasBuilderRef.current.setCapturing(false);
+      return null;
+    }
   };
 
   const handleAddToCart = async () => {
@@ -173,103 +170,34 @@ export const Home = () => {
       return;
     }
 
-    const canvasElement = document.getElementById('canvas-drop-zone');
-    if (!canvasElement) {
-      alert('Canvas not found!');
-      return;
+    const isMobile = window.innerWidth < 1024;
+    if (isMobile && !isMobileCanvasOpen) {
+       setIsMobileCanvasOpen(true);
+       await new Promise(resolve => setTimeout(resolve, 300));
     }
 
-    try {
-      if (canvasBuilderRef.current) {
-        canvasBuilderRef.current.setCapturing(true);
-      }
+    // ★ 현재 높이 가져오기 (없으면 기본 700)
+    const currentHeight = canvasBuilderRef.current?.getHeight() || 700;
+    
+    const dataUrl = await captureCanvasSnapshot();
+    const totalPrice = canvasItems.reduce((sum, item) => sum + item.price, 0);
 
-      await new Promise(resolve => setTimeout(resolve, 100));
+    addToCart({ 
+      id: 'custom-keyring-' + Date.now(), 
+      name: 'Custom Keyring Set', 
+      price: totalPrice, 
+      image: dataUrl || '', 
+      items: canvasItems,
+      // ★ 높이 정보 저장
+      canvasHeight: currentHeight
+    } as any);
 
-      const canvasSnapshot = await html2canvas(canvasElement, {
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#09090b',
-        scale: 2,
-        logging: false,
-        scrollY: -window.scrollY,
-        scrollX: -window.scrollX,
-        windowWidth: canvasElement.scrollWidth,
-        windowHeight: canvasElement.scrollHeight,
-      });
-
-      const dataUrl = canvasSnapshot.toDataURL('image/png');
-
-      if (canvasBuilderRef.current) {
-        canvasBuilderRef.current.setCapturing(false);
-      }
-
-      const totalPrice = canvasItems.reduce((sum, item) => sum + item.price, 0);
-
-      addToCart({
-        id: 'custom-keyring-' + Date.now(),
-        name: 'Custom Keyring Set',
-        price: totalPrice,
-        image: dataUrl,
-        items: canvasItems,
-      });
-
-      alert('Items added to cart successfully!');
-      navigate('/cart');
-    } catch (error) {
-      console.error('Failed to capture canvas:', error);
-      if (canvasBuilderRef.current) {
-        canvasBuilderRef.current.setCapturing(false);
-      }
-      alert('Failed to add items to cart. Please try again.');
-    }
+    alert('Items added to cart successfully!');
+    navigate('/cart');
+    setIsMobileCanvasOpen(false);
   };
 
-  const handleCheckout = async () => {
-    await handleAddToCart();
-  };
-
-  const captureCanvasSnapshot = async (): Promise<string | null> => {
-    const canvasElement = document.getElementById('canvas-drop-zone');
-    if (!canvasElement) {
-      alert('Canvas not found!');
-      return null;
-    }
-
-    try {
-      if (canvasBuilderRef.current) {
-        canvasBuilderRef.current.setCapturing(true);
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      const canvasSnapshot = await html2canvas(canvasElement, {
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#09090b',
-        scale: 2,
-        logging: false,
-        scrollY: -window.scrollY,
-        scrollX: -window.scrollX,
-        windowWidth: canvasElement.scrollWidth,
-        windowHeight: canvasElement.scrollHeight,
-      });
-
-      const dataUrl = canvasSnapshot.toDataURL('image/png');
-
-      if (canvasBuilderRef.current) {
-        canvasBuilderRef.current.setCapturing(false);
-      }
-
-      return dataUrl;
-    } catch (error) {
-      console.error('Failed to capture canvas:', error);
-      if (canvasBuilderRef.current) {
-        canvasBuilderRef.current.setCapturing(false);
-      }
-      return null;
-    }
-  };
+  const handleCheckout = async () => { await handleAddToCart(); };
 
   const handleSaveDesign = async () => {
     if (!user) {
@@ -277,18 +205,21 @@ export const Home = () => {
       navigate('/login');
       return;
     }
-
     if (canvasItems.length === 0) {
       alert('Please add items to the canvas first!');
       return;
     }
 
+    const isMobile = window.innerWidth < 1024;
+    if (isMobile && !isMobileCanvasOpen) {
+       setIsMobileCanvasOpen(true);
+       await new Promise(resolve => setTimeout(resolve, 300));
+    }
+
     try {
       const snapshotImage = await captureCanvasSnapshot();
-      if (!snapshotImage) {
-        alert('Failed to capture canvas snapshot!');
-        return;
-      }
+      // ★ 현재 높이 가져오기
+      const currentHeight = canvasBuilderRef.current?.getHeight() || 700;
 
       const designData = {
         items: canvasItems.map(item => ({
@@ -303,21 +234,22 @@ export const Home = () => {
           rotation: item.rotation,
         })),
         totalPrice: canvasItems.reduce((sum, item) => sum + item.price, 0),
+        // ★ 높이 정보 저장
+        canvasHeight: currentHeight
       };
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('saved_designs')
         .insert({
           user_id: user.id,
           design_name: `Design ${new Date().toLocaleDateString()}`,
           design_data: designData,
-          snapshot_image: snapshotImage,
-        })
-        .select();
+          snapshot_image: snapshotImage || '', 
+        });
 
       if (error) throw error;
-
       alert('Design saved successfully!');
+      
     } catch (error: any) {
       console.error('Failed to save design:', error);
       alert(`Failed to save design: ${error?.message || 'Unknown error'}. Please try again.`);
@@ -325,100 +257,62 @@ export const Home = () => {
   };
 
   const handleShare = async () => {
-    if (canvasItems.length === 0) {
-      alert('Please add items to the canvas first!');
-      return;
-    }
-
+    if (canvasItems.length === 0) { alert('Please add items!'); return; }
     try {
       const currentUrl = window.location.href;
       await navigator.clipboard.writeText(currentUrl);
       alert('Link copied to clipboard!');
-    } catch (error) {
-      console.error('Failed to copy link:', error);
-      alert('Failed to copy link. Please try again.');
-    }
+    } catch (error) { console.error(error); alert('Failed to copy link.'); }
   };
 
   const filteredProducts = products.filter(product => {
     if (product.status === 'hidden') return false;
     if (!selectedCategory) return true;
-
     const activeCat = categories.find(c => c.slug === selectedCategory);
     if (!activeCat) return true;
-
     let matchesCategory = false;
     if (Array.isArray(product.category_ids) && product.category_ids.length > 0) {
       matchesCategory = product.category_ids.some(id => String(id) === String(activeCat.id));
     }
     if (!matchesCategory) {
+      const categoryToCheck = product.menu_category || product.category;
       switch (activeCat.filter_type) {
         case 'ALL': matchesCategory = true; break;
-        case 'MIX': 
-          const categoryToCheckMix = product.menu_category || product.category;
-          matchesCategory = activeCat.included_categories?.includes(categoryToCheckMix?.toUpperCase()) || false; 
-          break;
-        case 'SINGLE': default: 
-          const productMenuCategory = product.menu_category || product.category;
-          matchesCategory = productMenuCategory?.trim().toUpperCase() === activeCat.slug?.trim().toUpperCase(); 
-          break;
+        case 'MIX': matchesCategory = activeCat.included_categories?.includes(categoryToCheck?.toUpperCase()) || false; break;
+        case 'SINGLE': default: matchesCategory = categoryToCheck?.trim().toUpperCase() === activeCat.slug?.trim().toUpperCase(); break;
       }
     }
-
-    const matchesSearch = searchQuery === '' ||
-      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (product.sub_category || product.category || '').toLowerCase().includes(searchQuery.toLowerCase());
-
+    const matchesSearch = searchQuery === '' || product.name.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
   const renderCategorySections = (selectedIds: string[] | undefined) => {
     if (!selectedIds || selectedIds.length === 0) return null;
-
-    const targetCategories = categories.filter(c => {
-      return selectedIds.some(savedId => String(savedId) === String(c.id));
-    });
-
+    const targetCategories = categories.filter(c => selectedIds.some(savedId => String(savedId) === String(c.id)));
     if (targetCategories.length === 0) return null;
-
     return (
       <>
         {targetCategories.map(category => {
           const categoryProducts = products.filter(product => {
-            if (product.status === 'hidden') return false;
-            let matchesCategory = false;
-
-            if (Array.isArray(product.category_ids) && product.category_ids.length > 0) {
-              matchesCategory = product.category_ids.some(id => String(id) === String(category.id));
-            }
-
-            if (!matchesCategory) {
-              const categoryToCheck = product.menu_category || product.category;
-              switch (category.filter_type) {
-                case 'ALL': matchesCategory = true; break;
-                case 'MIX': matchesCategory = category.included_categories?.includes(categoryToCheck?.toUpperCase()) || false; break;
-                case 'SINGLE': default: matchesCategory = categoryToCheck?.trim().toUpperCase() === category.slug?.trim().toUpperCase(); break;
-              }
-            }
-            return matchesCategory;
+             if (product.status === 'hidden') return false;
+             let matchesCategory = false;
+             if (Array.isArray(product.category_ids) && product.category_ids.length > 0) {
+               if (product.category_ids.some(id => String(id) === String(category.id))) matchesCategory = true;
+             }
+             if (!matchesCategory) {
+               const cCheck = product.menu_category || product.category;
+               if(category.filter_type === 'ALL') matchesCategory = true;
+               else if(category.filter_type === 'MIX') matchesCategory = category.included_categories?.includes(cCheck?.toUpperCase()) || false;
+               else matchesCategory = cCheck?.trim().toUpperCase() === category.slug?.trim().toUpperCase();
+             }
+             return matchesCategory;
           });
-
           if (categoryProducts.length === 0) return null;
-
           return (
-            <div key={category.id} className="mb-8">
-              <h2 className="text-white font-bold uppercase tracking-wider mb-4 text-lg">
-                {category.name}
-              </h2>
+            <div key={category.id} className="mb-8 px-6 md:px-0">
+              <h2 className="text-white font-bold uppercase tracking-wider mb-4 text-lg">{category.name}</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-                {categoryProducts.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    onClick={handleProductClick}
-                    onAddToCanvas={handleQuickAdd}
-                  />
-                ))}
+                {categoryProducts.map(p => <ProductCard key={p.id} product={p} onClick={handleProductClick} onAddToCanvas={handleQuickAdd} mode={currentSection as 'SHOP'|'BUILDER'} />)}
               </div>
             </div>
           );
@@ -427,191 +321,76 @@ export const Home = () => {
     );
   };
 
-  if (loading) {
-    return (
-      <div className="flex h-screen bg-black items-center justify-center">
-        <div className="text-center">
-          <div className="text-zinc-700 text-sm mb-2">LOADING...</div>
-          <div className="text-zinc-800 text-xs">PLEASE WAIT</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (settings?.is_maintenance_mode) {
-    return (
-      <div className="flex h-screen bg-black items-center justify-center">
-        <div className="text-center max-w-md px-6">
-          <div className="mb-6 flex justify-center">
-            <div className="w-20 h-20 rounded-full flex items-center justify-center border-2" style={{ borderColor: settings.primary_color, backgroundColor: `${settings.primary_color}10` }}>
-              <Wrench size={40} style={{ color: settings.primary_color }} />
-            </div>
-          </div>
-          <h1 className="text-2xl text-white mb-4">MAINTENANCE MODE</h1>
-          <p className="text-zinc-400 text-sm mb-6">We are upgrading. Come back soon.</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <div className="flex h-screen bg-black items-center justify-center text-zinc-700">LOADING...</div>;
+  if (settings?.is_maintenance_mode) return <div className="flex h-screen bg-black text-white items-center justify-center"><div className="text-center"><Wrench size={40} className="mx-auto mb-4 text-white"/><h1 className="text-2xl">MAINTENANCE</h1></div></div>;
 
   const handleCategoryChange = (category: string) => {
     setSelectedProduct(null);
     if (currentSection === 'BUILDER') {
-      if (category === 'all') {
-        setViewMode('HOME');
-        setSelectedCategory(null);
-      } else {
-        setViewMode('CATEGORY');
-        setSelectedCategory(category);
-      }
-    } else {
-      setSelectedCategory(category === 'all' ? null : category);
-    }
+      if (category === 'all') { setViewMode('HOME'); setSelectedCategory(null); }
+      else { setViewMode('CATEGORY'); setSelectedCategory(category); }
+    } else { setSelectedCategory(category === 'all' ? null : category); }
   };
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: settings?.bg_color || '#000000' }}>
+    <div className="min-h-screen pb-20 md:pb-0" style={{ backgroundColor: settings?.bg_color || '#000000' }}>
       <Header cartCount={0} onSearchChange={setSearchQuery} onLogoClick={() => {
         setSelectedProduct(null);
-        if (currentSection === 'SHOP') {
-          setSelectedCategory(null);
-        } else if (currentSection === 'BUILDER') {
-          setViewMode('HOME');
-          setSelectedCategory(null);
-        }
+        if (currentSection === 'SHOP') setSelectedCategory(null);
+        else if (currentSection === 'BUILDER') { setViewMode('HOME'); setSelectedCategory(null); }
       }} />
 
-      <CategoryTabs
-        activeCategory={selectedCategory || 'all'}
-        onCategoryChange={handleCategoryChange}
-      />
+      <CategoryTabs activeCategory={selectedCategory || 'all'} onCategoryChange={handleCategoryChange} />
 
-      <div className="max-w-[1300px] mx-auto px-6 py-4">
-        {/* ★ 핵심 변경 사항: 
-          BUILDER일 때는 2단 그리드 (65% : 35%), 
-          SHOP일 때는 1단 그리드 (100%)로 자동 변경됩니다.
-        */}
-        <div className={`grid gap-6 ${currentSection === 'BUILDER' ? 'grid-cols-1 lg:grid-cols-[65%_35%]' : 'grid-cols-1'}`}>
+      <div className="max-w-[1300px] mx-auto px-0 py-0 md:px-6 md:py-4">
+        {/* 1300px 기준: 오른쪽 450px 고정, 왼쪽 나머지 */}
+        <div className={`grid gap-6 ${currentSection === 'BUILDER' ? 'grid-cols-1 lg:grid-cols-[1fr_450px]' : 'grid-cols-1'}`}>
           
-          {/* 왼쪽 컬럼 (SHOP에서는 전체 너비) */}
-          <div className="border border-white/30 p-6" style={{ backgroundColor: settings?.bg_color || '#000000' }}>
-            
-            {/* 1. 상세페이지 보기 */}
+          <div className="border-0 md:border border-white/30 p-0 md:p-6" style={{ backgroundColor: settings?.bg_color || '#000000' }}>
             {selectedProduct ? (
-              <ProductDetailView 
-                product={selectedProduct} 
-                onBack={() => setSelectedProduct(null)} 
-              />
+              <div className="px-6 md:px-0 py-6 md:py-0"><ProductDetailView product={selectedProduct} onBack={() => setSelectedProduct(null)} /></div>
             ) : (
-              /* 2. 상품 목록 보기 */
               <div className="space-y-4">
-                {/* 배너 표시 로직 */}
-                {currentSection === 'SHOP' ? (
-                  // SHOP용 배너
-                  !selectedCategory && settings?.shop_banner_images && settings.shop_banner_images.length > 0 && (
-                    <div className="mb-3 w-full">
-                      <ShopBannerSlider
-                        images={settings.shop_banner_images}
-                        transition={(settings.shop_banner_transition || settings.banner_transition || 'slide') as 'slide' | 'fade'}
-                        speed={settings.shop_banner_speed || settings.banner_speed || 3000}
-                      />
-                    </div>
-                  )
-                ) : (
-                  // BUILDER용 배너 (HOME 모드일 때만)
-                  viewMode === 'HOME' && settings?.builder_banner_images && settings.builder_banner_images.length > 0 && (
-                    <div className="mb-3 w-full">
-                      <ShopBannerSlider
-                        images={settings.builder_banner_images}
-                        transition={(settings.builder_banner_transition || settings.banner_transition || 'slide') as 'slide' | 'fade'}
-                        speed={settings.builder_banner_speed || settings.banner_speed || 3000}
-                      />
-                    </div>
-                  )
+                {currentSection === 'SHOP' && !selectedCategory && settings?.shop_banner_images && (
+                  <div className="mb-3 w-full"><ShopBannerSlider images={settings.shop_banner_images} transition="slide" speed={3000} /></div>
                 )}
-
-                {/* 카테고리 섹션 or 전체 목록 표시 */}
+                {currentSection === 'BUILDER' && viewMode === 'HOME' && settings?.builder_banner_images && (
+                  <div className="mb-3 w-full"><ShopBannerSlider images={settings.builder_banner_images} transition="slide" speed={3000} /></div>
+                )}
                 {currentSection === 'SHOP' ? (
-                  // SHOP: 카테고리 설정에 따라 표시
-                  !selectedCategory ? (
-                    renderCategorySections(settings?.shop_home_categories)
-                  ) : (
-                    // 카테고리 필터링 됨
-                    <>
-                      <h2 className="text-white font-bold uppercase tracking-wider mb-6 text-sm">
-                        PRODUCT LIST
-                      </h2>
-                      {filteredProducts.length === 0 ? (
-                        <div className="text-white/40 text-center py-12">No products available</div>
-                      ) : (
-                        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-                          {filteredProducts.map((product) => (
-                            <ProductCard
-                              key={product.id}
-                              product={product}
-                              onClick={handleProductClick}
-                              onAddToCanvas={handleQuickAdd}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </>
+                  !selectedCategory ? renderCategorySections(settings?.shop_home_categories) : (
+                    <div className="px-6 md:px-0 mt-6"><h2 className="text-white font-bold uppercase tracking-wider mb-6 text-sm">PRODUCT LIST</h2><div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">{filteredProducts.map(p => <ProductCard key={p.id} product={p} onClick={handleProductClick} onAddToCanvas={handleQuickAdd} mode="SHOP" />)}</div></div>
                   )
                 ) : (
-                  // BUILDER: 뷰모드에 따라 표시
-                  viewMode === 'HOME' ? (
-                    renderCategorySections(settings?.builder_home_categories)
-                  ) : (
-                    <>
-                      <h2 className="text-white font-bold uppercase tracking-wider mb-6 text-sm">
-                        PRODUCT LIST
-                      </h2>
-                      {filteredProducts.length === 0 ? (
-                        <div className="text-white/40 text-center py-12">No products available</div>
-                      ) : (
-                        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-                          {filteredProducts.map((product) => (
-                            <ProductCard
-                              key={product.id}
-                              product={product}
-                              onClick={handleProductClick}
-                              onAddToCanvas={handleQuickAdd}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </>
+                  viewMode === 'HOME' ? renderCategorySections(settings?.builder_home_categories) : (
+                    <div className="px-6 md:px-0 mt-6"><h2 className="text-white font-bold uppercase tracking-wider mb-6 text-sm">PRODUCT LIST</h2><div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">{filteredProducts.map(p => <ProductCard key={p.id} product={p} onClick={handleProductClick} onAddToCanvas={handleQuickAdd} mode="BUILDER" />)}</div></div>
                   )
                 )}
               </div>
             )}
           </div>
 
-          {/* 오른쪽 컬럼 (드롭존) - BUILDER일 때만 보임 */}
           {currentSection === 'BUILDER' && (
-            <div className="space-y-4">
-              <div className="border border-white/30" style={{ backgroundColor: settings?.bg_color || '#000000' }}>
-                <CanvasBuilder
-                  ref={canvasBuilderRef}
-                  onItemsChange={handleCanvasItemsChange}
-                  initialHeight={settings?.canvas_height || 700}
-                />
+            <>
+              <button onClick={() => setIsMobileCanvasOpen(true)} className="lg:hidden fixed bottom-6 right-6 z-40 w-14 h-14 bg-[#34d399] rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
+                <Layers className="text-black" size={24} />
+              </button>
+<div className={`flex flex-col gap-4 ${isMobileCanvasOpen ? 'fixed inset-0 z-50 bg-black p-4 overflow-y-auto safe-area-inset-top lg:static lg:bg-transparent lg:p-0 lg:overflow-visible' : 'hidden lg:flex'}`}>
+                {/* 모바일 헤더는 lg:hidden으로 숨겨지지만 flex gap은 숨겨진 요소 무시하고 정확히 간격 잡음 */}
+                <div className="flex justify-between items-center mb-4 pb-2 border-b border-white/20 lg:hidden">
+                  <span className="text-white font-bold text-lg">DROP ZONE</span>
+                  <button onClick={() => setIsMobileCanvasOpen(false)} className="text-white hover:text-red-500"><X size={28} /></button>
+                </div>
+                
+                {/* ★ 높이 제한 제거: CanvasBuilder가 알아서 결정 */}
+                <div className="border border-white/30 bg-black w-full" id="canvas-drop-zone">
+                  <CanvasBuilder ref={canvasBuilderRef} onItemsChange={handleCanvasItemsChange} initialHeight={700} />
+                </div>
+                
+                <OrderSummary items={canvasItems.map(item => ({ id: item.canvasId, name: item.name, price: item.price }))} onAddToCart={handleAddToCart} onCheckout={handleCheckout} onSaveDesign={handleSaveDesign} onShare={handleShare} />
               </div>
-
-              <OrderSummary
-                items={canvasItems.map(item => ({
-                  id: item.canvasId,
-                  name: item.name,
-                  price: item.price,
-                }))}
-                onAddToCart={handleAddToCart}
-                onCheckout={handleCheckout}
-                onSaveDesign={handleSaveDesign}
-                onShare={handleShare}
-              />
-            </div>
+            </>
           )}
-
         </div>
       </div>
     </div>

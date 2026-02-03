@@ -3,6 +3,7 @@ import { ArrowLeft, ShoppingCart, CreditCard, Plus } from 'lucide-react';
 import { KeyringItem } from '../types';
 import { useCart } from '../context/CartContext';
 import { useCanvas } from '../context/CanvasContext';
+import { useSection } from '../context/SectionContext'; // ★ 모드 확인용
 
 interface ProductDetailViewProps {
   product: KeyringItem;
@@ -12,6 +13,7 @@ interface ProductDetailViewProps {
 export const ProductDetailView = ({ product, onBack }: ProductDetailViewProps) => {
   const { addToCart } = useCart();
   const { addItemToCanvas } = useCanvas();
+  const { currentSection } = useSection(); // ★ 현재 모드 가져오기
   const [activeImage, setActiveImage] = useState<string>(product.image);
 
   useEffect(() => {
@@ -29,9 +31,7 @@ export const ProductDetailView = ({ product, onBack }: ProductDetailViewProps) =
     alert('Added to Cart!');
   };
 
-  // 드롭존 추가 함수
   const handleAddToDropZone = () => {
-    console.log('Adding to drop zone:', product); // 디버깅용 로그
     addItemToCanvas(product);
   };
 
@@ -115,14 +115,17 @@ export const ProductDetailView = ({ product, onBack }: ProductDetailViewProps) =
 
             {/* 버튼 그룹 */}
             <div className="space-y-3 pt-4">
-              <button
-                onClick={handleAddToDropZone}
-                disabled={product.status === 'soldout'}
-                className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-all border border-zinc-700 hover:border-zinc-500"
-              >
-                <Plus size={18} />
-                ADD TO DROP ZONE
-              </button>
+              {/* ★ BUILDER 모드일 때만 드롭존 추가 버튼 표시 ★ */}
+              {currentSection === 'BUILDER' && (
+                <button
+                  onClick={handleAddToDropZone}
+                  disabled={product.status === 'soldout'}
+                  className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-all border border-zinc-700 hover:border-zinc-500"
+                >
+                  <Plus size={18} />
+                  ADD TO DROP ZONE
+                </button>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <button

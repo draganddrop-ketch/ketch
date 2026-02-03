@@ -1,232 +1,139 @@
 import { useState, useRef, forwardRef, useImperativeHandle } from 'react';
-import { Trash2, RotateCcw, GripHorizontal } from 'lucide-react';
+import { Trash2, RotateCcw, GripHorizontal, ArrowUp, ArrowDown } from 'lucide-react';
 import { useCanvas } from '../context/CanvasContext';
 
-interface CanvasBuilderProps {
-  onItemsChange?: (items: any[]) => void;
-  initialHeight?: number;
-}
+interface CanvasBuilderProps { onItemsChange?: (items: any[]) => void; initialHeight?: number; }
+export interface CanvasBuilderRef { setCapturing: (capturing: boolean) => void; getHeight: () => number; }
 
-export interface CanvasBuilderRef {
-  setCapturing: (capturing: boolean) => void;
-}
-
-export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({ onItemsChange, initialHeight = 700 }, ref) => {
-  const { canvasItems, setCanvasItems } = useCanvas();
-  
+export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({ onItemsChange, initialHeight = 600 }, ref) => {
+  const { canvasItems, setCanvasItems, clearCanvas, selectedId, selectItem } = useCanvas();
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [localSelectedId, setLocalSelectedId] = useState<string | null>(null);
+  const activeSelectedId = selectedId ?? localSelectedId;
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [isCapturing, setIsCapturing] = useState(false);
   const [canvasHeight, setCanvasHeight] = useState(initialHeight);
   const [isResizing, setIsResizing] = useState(false);
-  const [isCapturing, setIsCapturing] = useState(false);
-  const canvasRef = useRef<HTMLDivElement>(null);
   const resizeStartY = useRef<number>(0);
   const resizeStartHeight = useRef<number>(0);
+  const canvasRef = useRef<HTMLDivElement>(null);
 
-  useImperativeHandle(ref, () => ({
-    setCapturing: (capturing: boolean) => {
-      setIsCapturing(capturing);
-    },
-  }));
+  useImperativeHandle(ref, () => ({ setCapturing: setIsCapturing, getHeight: () => canvasHeight }));
+
+  const handleSelect = (id: string | null) => { if (selectItem) selectItem(id); setLocalSelectedId(id); };
+  
+  // 레이어 순서 변경
+  const handleLayerChange = (id: string, direction: 'forward' | 'backward') => {
+    const index = canvasItems.findIndex(i => i.canvasId === id);
+    if (index === -1) return;
+    const newItems = [...canvasItems];
+    if (direction === 'backward' && index > 0) { [newItems[index - 1], newItems[index]] = [newItems[index], newItems[index - 1]]; } 
+    else if (direction === 'forward' && index < newItems.length - 1) { [newItems[index], newItems[index + 1]] = [newItems[index + 1], newItems[index]]; }
+    setCanvasItems(newItems);
+    if (onItemsChange) onItemsChange(newItems);
+  };
 
   const handleItemMouseDown = (e: React.MouseEvent, canvasId: string) => {
     e.stopPropagation();
     const item = canvasItems.find((i) => i.canvasId === canvasId);
     if (!item) return;
-
-    setSelectedItemId(canvasId);
+    handleSelect(canvasId);
     setDraggedItemId(canvasId);
-
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
-
-    setDragOffset({
-      x: e.clientX - rect.left - item.x,
-      y: e.clientY - rect.top - item.y,
-    });
+    const scaleX = 450 / rect.width;
+    const scaleY = canvasHeight / rect.height;
+    setDragOffset({ x: (e.clientX - rect.left) * scaleX - item.x, y: (e.clientY - rect.top) * scaleY - item.y });
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!draggedItemId || !canvasRef.current) return;
-
     const rect = canvasRef.current.getBoundingClientRect();
-    let x = e.clientX - rect.left - dragOffset.x;
-    let y = e.clientY - rect.top - dragOffset.y;
-
-    const updatedItems = canvasItems.map((item) =>
-      item.canvasId === draggedItemId ? { ...item, x, y } : item
-    );
+    const scaleX = 450 / rect.width;
+    const scaleY = canvasHeight / rect.height;
+    let x = (e.clientX - rect.left) * scaleX - dragOffset.x;
+    let y = (e.clientY - rect.top) * scaleY - dragOffset.y;
+    x = Math.max(-100, Math.min(x, 450 - 100));
+    y = Math.max(-100, Math.min(y, canvasHeight - 100));
+    const updatedItems = canvasItems.map((item) => item.canvasId === draggedItemId ? { ...item, x, y } : item);
     setCanvasItems(updatedItems);
+    if (onItemsChange) onItemsChange(updatedItems);
   };
 
-  const handleMouseUp = () => {
-    setDraggedItemId(null);
-  };
-
-  const handleRotationChange = (canvasId: string, rotation: number) => {
-    const updatedItems = canvasItems.map((item) =>
-      item.canvasId === canvasId ? { ...item, rotation } : item
-    );
-    setCanvasItems(updatedItems);
-  };
-
-  const handleRemove = (canvasId: string) => {
-    const updatedItems = canvasItems.filter((item) => item.canvasId !== canvasId);
-    setCanvasItems(updatedItems);
-    if (selectedItemId === canvasId) {
-      setSelectedItemId(null);
-    }
-  };
-
-  const handleCanvasClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      setSelectedItemId(null);
-    }
-  };
-
-  const handleResetCanvas = () => {
-    if (canvasItems.length === 0) return;
-    if (window.confirm('Are you sure you want to clear all items from the canvas?')) {
-      setCanvasItems([]);
-      setSelectedItemId(null);
-    }
-  };
-
+  const handleMouseUp = () => setDraggedItemId(null);
+  
   const handleResizeMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     setIsResizing(true);
     resizeStartY.current = e.clientY;
     resizeStartHeight.current = canvasHeight;
-
-    const handleMouseMove = (moveEvent: MouseEvent) => {
+    const handleWindowMouseMove = (moveEvent: MouseEvent) => {
       const deltaY = moveEvent.clientY - resizeStartY.current;
-      const newHeight = Math.max(300, resizeStartHeight.current + deltaY);
+      const newHeight = Math.max(400, Math.min(1500, resizeStartHeight.current + deltaY));
       setCanvasHeight(newHeight);
     };
-
-    const handleMouseUp = () => {
+    const handleWindowMouseUp = () => {
       setIsResizing(false);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('mousemove', handleWindowMouseMove);
+      window.removeEventListener('mouseup', handleWindowMouseUp);
     };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('mousemove', handleWindowMouseMove);
+    window.addEventListener('mouseup', handleWindowMouseUp);
   };
 
+  const handleRotationChange = (id: string, rot: number) => { const newItems = canvasItems.map(i => i.canvasId === id ? { ...i, rotation: rot } : i); setCanvasItems(newItems); if (onItemsChange) onItemsChange(newItems); };
+  const handleRemove = (id: string) => { const newItems = canvasItems.filter(i => i.canvasId !== id); setCanvasItems(newItems); if (onItemsChange) onItemsChange(newItems); if (activeSelectedId === id) handleSelect(null); };
+  const handleResetCanvas = () => { if(confirm('Clear canvas?')) { if(clearCanvas) clearCanvas(); else setCanvasItems([]); handleSelect(null); if(onItemsChange) onItemsChange([]); } };
   const getImageUrl = (item: any) => item.image || item.image_url || '';
 
   return (
-    <div className="flex flex-col">
-      <div className="p-4 border-b border-white/30 flex items-center justify-between">
-        <h2 className="text-white font-bold uppercase tracking-wider text-sm">
-          DROP ZONE
-        </h2>
-        {canvasItems.length > 0 && (
-          <button
-            onClick={handleResetCanvas}
-            className="flex items-center gap-2 bg-zinc-900 text-white hover:text-red-400 px-3 py-2 rounded transition-colors border border-white/20 hover:border-red-400"
-          >
-            <RotateCcw size={14} />
-            <span className="text-xs font-medium uppercase tracking-wide">Reset</span>
-          </button>
-        )}
+    <div className="flex flex-col w-full h-full bg-zinc-950">
+      <div className="p-4 border-b border-white/20 flex justify-between items-center bg-zinc-900 flex-shrink-0">
+        <span className="text-white font-bold text-sm">DROP ZONE</span>
+        {canvasItems.length > 0 && <button onClick={handleResetCanvas}><RotateCcw className="text-white hover:text-red-400" size={16}/></button>}
       </div>
-
-      <div className="relative">
-        <div
-          id="canvas-drop-zone"
-          ref={canvasRef}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-          onClick={handleCanvasClick}
-          className={`bg-zinc-950 relative overflow-hidden ${isCapturing ? 'is-capturing' : ''}`}
-          style={{ height: `${canvasHeight}px` }}
+      
+      <div className="w-full relative overflow-hidden" style={{ height: `${canvasHeight}px`, transition: isResizing ? 'none' : 'height 0.2s' }}>
+        <div 
+           id="canvas-drop-zone"
+           ref={canvasRef}
+           className={`absolute inset-0 ${isCapturing ? 'is-capturing' : ''}`}
+           onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onClick={() => handleSelect(null)}
+           style={{ backgroundImage: 'linear-gradient(#333 1px, transparent 1px), linear-gradient(90deg, #333 1px, transparent 1px)', backgroundSize: '50px 50px' }}
         >
-          {canvasItems.length === 0 ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-white/30">
-              <div className="text-lg font-medium mb-2">CLICK TO ADD</div>
-              <div className="text-xs">Click items from the list to add them here</div>
-            </div>
-          ) : (
-            canvasItems.map((item) => (
-              <div
-                key={item.canvasId}
-                // ★ 여기 수정: w-64 h-64를 추가하여 부모 박스 크기도 고정!
-                className="absolute group canvas-item w-64 h-64"
-                style={{
-                  left: `${item.x}px`,
-                  top: `${item.y}px`,
-                  zIndex: draggedItemId === item.canvasId ? 1000 : selectedItemId === item.canvasId ? 50 : 1,
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedItemId(item.canvasId);
-                }}
-              >
-                <div
-                  className="cursor-move w-full h-full"
-                  onMouseDown={(e) => handleItemMouseDown(e, item.canvasId)}
-                  style={{
-                    transform: `rotate(${item.rotation}deg)`,
-                  }}
-                >
-                  <img
-                    src={getImageUrl(item)}
-                    alt={item.name}
-                    // ★ 여기 수정: max-w-none 추가 (자동 축소 방지)
-                    className="w-full h-full object-contain pointer-events-none drop-shadow-2xl max-w-none"
-                    draggable={false}
-                  />
-                </div>
-
-                {selectedItemId === item.canvasId && (
-                  <div className="canvas-controls absolute -top-24 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-50">
-                    <div className="bg-black/90 border border-white/20 rounded px-3 py-2 flex items-center gap-2 shadow-xl backdrop-blur-sm">
-                      <span className="text-[10px] text-gray-400 font-medium">L</span>
-                      <div className="flex flex-col items-center">
-                        <input
-                          type="range"
-                          min="-180"
-                          max="180"
-                          value={item.rotation}
-                          onChange={(e) => handleRotationChange(item.canvasId, parseInt(e.target.value))}
-                          className="w-24 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-cyan-400"
-                          onClick={(e) => e.stopPropagation()}
-                          onMouseDown={(e) => e.stopPropagation()}
-                        />
-                      </div>
-                      <span className="text-[10px] text-gray-400 font-medium">R</span>
+           <div style={{ width: '450px', height: `${canvasHeight}px`, transform: `scale(${canvasRef.current ? canvasRef.current.clientWidth / 450 : 1})`, transformOrigin: 'top left' }}>
+              {canvasItems.length === 0 && <div className="absolute inset-0 flex items-center justify-center text-white/30 pointer-events-none">Drag items here</div>}
+              {canvasItems.map((item, index) => (
+                 <div key={item.canvasId} className="absolute w-64 h-64" style={{ left: item.x, top: item.y, zIndex: draggedItemId===item.canvasId ? 1000 : (activeSelectedId === item.canvasId ? 900 : index) }} onClick={e=>{e.stopPropagation(); handleSelect(item.canvasId);}}>
+                    <div className="w-full h-full cursor-move" onMouseDown={e=>handleItemMouseDown(e, item.canvasId)} style={{ transform: `rotate(${item.rotation}deg)` }}>
+                       <img src={getImageUrl(item)} className="w-full h-full object-contain pointer-events-none drop-shadow-xl" />
                     </div>
-
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRemove(item.canvasId);
-                      }}
-                      className="bg-red-500/90 hover:bg-red-600 text-white text-xs px-3 py-1 rounded flex items-center gap-1 shadow-lg transition-colors"
-                    >
-                      <Trash2 size={12} />
-                      Delete
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))
-          )}
-        </div>
-
-        <div
-          onMouseDown={handleResizeMouseDown}
-          className={`h-2 bg-zinc-800 hover:bg-cyan-400/50 cursor-row-resize flex items-center justify-center transition-colors border-t border-white/20 ${
-            isResizing ? 'bg-cyan-400/70' : ''
-          }`}
-        >
-          <GripHorizontal size={16} className="text-white/40" />
+                    
+                    {/* ★ UI 통합: 이미지 위에 컨트롤바 배치 */}
+                    {activeSelectedId === item.canvasId && (
+                      <div className="canvas-controls absolute -top-2 left-1/2 -translate-x-1/2 flex flex-col items-center z-50">
+                        <div className="bg-black/90 border border-white/20 rounded-lg p-2 backdrop-blur-sm flex flex-col gap-2 items-center shadow-2xl">
+                          {/* 회전 슬라이더 */}
+                          <input type="range" min="-180" max="180" value={item.rotation} onChange={e=>handleRotationChange(item.canvasId, parseInt(e.target.value))} className="w-32 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-cyan-400" onMouseDown={e=>e.stopPropagation()}/>
+                          
+                          {/* 순서 변경 및 삭제 버튼 한 줄 배치 */}
+                          <div className="flex gap-4 w-full justify-center items-center border-t border-white/10 pt-2">
+                             <div className="flex gap-1">
+                               <button onClick={(e)=>{e.stopPropagation(); handleLayerChange(item.canvasId, 'backward')}} className="text-gray-400 hover:text-white p-1 hover:bg-white/10 rounded" title="Send Backward"><ArrowDown size={14} /></button>
+                               <button onClick={(e)=>{e.stopPropagation(); handleLayerChange(item.canvasId, 'forward')}} className="text-gray-400 hover:text-white p-1 hover:bg-white/10 rounded" title="Bring Forward"><ArrowUp size={14} /></button>
+                             </div>
+                             <div className="w-px h-3 bg-white/20"></div>
+                             <button onClick={e=>{e.stopPropagation(); handleRemove(item.canvasId);}} className="text-red-400 hover:text-red-300 p-1 hover:bg-white/10 rounded" title="Delete"><Trash2 size={14}/></button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                 </div>
+              ))}
+           </div>
         </div>
       </div>
+      <div onMouseDown={handleResizeMouseDown} className={`h-4 bg-zinc-800 hover:bg-cyan-400/20 cursor-row-resize flex items-center justify-center border-t border-white/10 flex-shrink-0 ${isResizing ? 'bg-cyan-400/40' : ''}`}><GripHorizontal size={16} className="text-white/40" /></div>
     </div>
   );
 });
