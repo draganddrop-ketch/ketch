@@ -21,6 +21,7 @@ export const ProductInventory = () => {
   const [editFormData, setEditFormData] = useState({
     name: '',
     category: '',
+    category_ids: [] as string[],
     menu_category: '',
     sub_category: '',
     price: '',
@@ -94,9 +95,14 @@ export const ProductInventory = () => {
 
   const handleEditProduct = (product: KeyringItem) => {
     setEditingProduct(product);
+    const categoryIds = Array.isArray(product.category_ids)
+      ? product.category_ids.map(id => String(id))
+      : [];
+
     setEditFormData({
       name: product.name,
       category: product.category,
+      category_ids: categoryIds,
       menu_category: product.menu_category || '',
       sub_category: product.sub_category || '',
       price: product.price.toString(),
@@ -193,6 +199,7 @@ export const ProductInventory = () => {
         .update({
           name: editFormData.name,
           category: editFormData.category,
+          category_ids: editFormData.category_ids,
           menu_category: editFormData.menu_category || null,
           sub_category: editFormData.sub_category || null,
           price: parseFloat(editFormData.price),
@@ -241,6 +248,7 @@ export const ProductInventory = () => {
     setEditFormData({
       name: '',
       category: '',
+      category_ids: [],
       menu_category: '',
       sub_category: '',
       price: '',
@@ -424,21 +432,36 @@ export const ProductInventory = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Category *</label>
-                <select
-                  value={editFormData.category}
-                  onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                >
-                  <option value="">Select a category</option>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Categories (Multi-Select)</label>
+                <div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
                   {categories.map((cat) => (
-                    <option key={cat.id} value={cat.slug}>
-                      {cat.name}
-                    </option>
+                    <label key={cat.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                      <input
+                        type="checkbox"
+                        checked={editFormData.category_ids.some(id => String(id) === String(cat.id))}
+                        onChange={(e) => {
+                          const catIdStr = String(cat.id);
+                          if (e.target.checked) {
+                            setEditFormData({
+                              ...editFormData,
+                              category_ids: [...editFormData.category_ids, catIdStr],
+                              category: editFormData.category || cat.slug
+                            });
+                          } else {
+                            setEditFormData({
+                              ...editFormData,
+                              category_ids: editFormData.category_ids.filter(id => String(id) !== catIdStr)
+                            });
+                          }
+                        }}
+                        className="w-4 h-4 text-blue-600"
+                      />
+                      <span className="text-sm text-gray-700">{cat.name}</span>
+                    </label>
                   ))}
-                </select>
+                </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  Legacy field - Consider using Menu Category and Sub Category instead
+                  Select all categories this product belongs to
                 </p>
               </div>
 

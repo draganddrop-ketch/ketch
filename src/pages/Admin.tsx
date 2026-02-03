@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { SiteSettingsForm } from '../components/SiteSettingsForm';
 import { MainPageManager } from '../components/MainPageManager';
 import { ProductInventory } from './ProductInventory';
+import { RichTextEditor } from '../components/RichTextEditor';
 import { useSiteSettings } from '../context/SiteSettingsContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -17,6 +18,7 @@ interface Category {
   filter_type: 'SINGLE' | 'ALL' | 'MIX';
   included_categories?: string[];
   is_hidden: boolean;
+  section: 'SHOP' | 'BUILDER';
 }
 
 interface Profile {
@@ -36,17 +38,24 @@ export const Admin = () => {
   const primaryColor = settings?.primary_color || '#34d399';
   const [categories, setCategories] = useState<Category[]>([]);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategorySection, setNewCategorySection] = useState<'SHOP' | 'BUILDER'>('BUILDER');
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editCategoryData, setEditCategoryData] = useState({
     name: '',
     filter_type: 'SINGLE' as 'SINGLE' | 'ALL' | 'MIX',
     included_categories: [] as string[],
+    section: 'BUILDER' as 'SHOP' | 'BUILDER',
   });
   const [formData, setFormData] = useState({
     name: '',
+    section: 'BUILDER' as 'SHOP' | 'BUILDER',
+    categories: [] as string[],
     category: '',
+    sub_category: '',
     price: '',
+    sale_price: '',
     description: '',
+    status: 'active' as 'active' | 'sold_out' | 'hidden',
     is_best: false,
     is_new: false,
   });
@@ -60,6 +69,8 @@ export const Admin = () => {
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState('');
   const [movingProductId, setMovingProductId] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -149,6 +160,18 @@ export const Admin = () => {
       ...prev,
       [name]: value,
     }));
+  };
+
+  const toggleCategorySelection = (categorySlug: string) => {
+    setFormData(prev => {
+      const isSelected = prev.categories.includes(categorySlug);
+      return {
+        ...prev,
+        categories: isSelected
+          ? prev.categories.filter(c => c !== categorySlug)
+          : [...prev.categories, categorySlug]
+      };
+    });
   };
 
   const handleMainImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -247,8 +270,8 @@ export const Admin = () => {
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.price || !formData.category) {
-      setMessage('Please fill all required fields');
+    if (!formData.name || !formData.price || formData.categories.length === 0) {
+      setMessage('Please fill all required fields (name, price, and at least one category)');
       return;
     }
 
@@ -256,7 +279,7 @@ export const Admin = () => {
       setUploading(true);
       setMessage('');
 
-      let mainImageUrl: string | null = null;
+      let mainImageUrl: string | null = mainImagePreviewUrl || null;
       if (mainImageFile) {
         console.log('=== Starting main image upload ===');
         mainImageUrl = await uploadImage(mainImageFile);
@@ -267,7 +290,7 @@ export const Admin = () => {
         console.log('Main image uploaded successfully:', mainImageUrl);
       }
 
-      let galleryImageUrls: string[] = [];
+      let galleryImageUrls: string[] = [...galleryPreviewUrls];
       if (galleryFiles.length > 0) {
         console.log('=== Starting upload of gallery images ===');
         for (const file of galleryFiles) {
@@ -279,38 +302,62 @@ export const Admin = () => {
         console.log('Gallery images uploaded successfully:', galleryImageUrls);
       }
 
-      console.log('Inserting product to database:', {
+      const productData = {
         name: formData.name,
-        category: formData.category,
+        category: formData.categories[0],
+        sub_category: formData.sub_category || null,
         price: parseInt(formData.price),
+        sale_price: formData.sale_price ? parseFloat(formData.sale_price) : null,
         description: formData.description,
+        status: formData.status,
         image_url: mainImageUrl,
         gallery_images: galleryImageUrls,
-      });
+        is_best: formData.is_best,
+        is_new: formData.is_new,
+      };
 
-      const { error } = await supabase
-        .from('products')
-        .insert({
-          name: formData.name,
-          category: formData.category,
-          price: parseInt(formData.price),
-          description: formData.description,
-          image_url: mainImageUrl,
-          gallery_images: galleryImageUrls,
-          is_best: formData.is_best,
-          is_new: formData.is_new,
-        });
+      if (editingProductId) {
+        const { error } = await supabase
+          .from('products')
+          .update(productData)
+          .eq('id', editingProductId);
 
-      if (error) {
-        console.error('Database insert error:', error);
-        throw error;
+        if (error) {
+          console.error('Database update error:', error);
+          throw error;
+        }
+
+        console.log('Product updated successfully!');
+        setMessage('Product updated successfully!');
+      } else {
+        const { error } = await supabase
+          .from('products')
+          .insert(productData);
+
+        if (error) {
+          console.error('Database insert error:', error);
+          throw error;
+        }
+
+        console.log('Product added successfully!');
+        setMessage('Product added successfully!');
       }
 
-      console.log('Product added successfully!');
-      setMessage('Product added successfully!');
-
-      const firstCategory = categories.length > 0 ? categories[0].slug : '';
-      setFormData({ name: '', category: firstCategory, price: '', description: '', is_best: false, is_new: false });
+      setFormData({
+        name: '',
+        section: 'BUILDER',
+        categories: [],
+        category: '',
+        sub_category: '',
+        price: '',
+        sale_price: '',
+        description: '',
+        status: 'active',
+        is_best: false,
+        is_new: false
+      });
+      setIsModalOpen(false);
+      setEditingProductId(null);
       setMainImageFile(null);
       setMainImagePreviewUrl('');
       setGalleryFiles([]);
@@ -323,12 +370,98 @@ export const Admin = () => {
 
       fetchProducts();
     } catch (err) {
-      console.error('=== Failed to add product ===');
+      console.error('=== Failed to save product ===');
       console.error('Error:', err);
-      setMessage(`Failed to add product: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setMessage(`Failed to save product: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleOpenAddModal = () => {
+    setFormData({
+      name: '',
+      section: 'BUILDER',
+      categories: [],
+      category: '',
+      sub_category: '',
+      price: '',
+      sale_price: '',
+      description: '',
+      status: 'active',
+      is_best: false,
+      is_new: false
+    });
+    setMainImageFile(null);
+    setMainImagePreviewUrl('');
+    setGalleryFiles([]);
+    setGalleryPreviewUrls([]);
+    setEditingProductId(null);
+    setIsModalOpen(true);
+  };
+
+  const handleEditProduct = async (productId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', productId)
+        .single();
+
+      if (error) throw error;
+
+      const productCategories = data.menu_category ? data.menu_category.split(',') : [data.category];
+
+      setFormData({
+        name: data.name,
+        section: categories.find(c => c.slug === data.category)?.section || 'BUILDER',
+        categories: productCategories,
+        category: data.category,
+        sub_category: data.sub_category || '',
+        price: data.price?.toString() || '',
+        sale_price: data.sale_price?.toString() || '',
+        description: data.description || '',
+        status: data.status || 'active',
+        is_best: data.is_best || false,
+        is_new: data.is_new || false
+      });
+
+      if (data.image_url) {
+        setMainImagePreviewUrl(data.image_url);
+      }
+
+      if (data.gallery_images && Array.isArray(data.gallery_images)) {
+        setGalleryPreviewUrls(data.gallery_images);
+      }
+
+      setEditingProductId(productId);
+      setIsModalOpen(true);
+    } catch (err) {
+      console.error('Failed to load product:', err);
+      setMessage('Failed to load product for editing');
+    }
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingProductId(null);
+    setFormData({
+      name: '',
+      section: 'BUILDER',
+      categories: [],
+      category: '',
+      sub_category: '',
+      price: '',
+      sale_price: '',
+      description: '',
+      status: 'active',
+      is_best: false,
+      is_new: false
+    });
+    setMainImageFile(null);
+    setMainImagePreviewUrl('');
+    setGalleryFiles([]);
+    setGalleryPreviewUrls([]);
   };
 
   const handleDeleteProduct = async (id: string) => {
@@ -390,13 +523,14 @@ export const Admin = () => {
     const slug = newCategoryName.trim().toLowerCase().replace(/\s+/g, '-');
 
     const { data, error } = await supabase.from('categories')
-      .insert([{ name, slug }])
+      .insert([{ name, slug, section: newCategorySection }])
       .select();
 
     if (error) {
       alert('Error adding category: ' + error.message);
     } else {
       setNewCategoryName('');
+      setNewCategorySection('BUILDER');
       fetchCategories();
     }
   };
@@ -485,6 +619,7 @@ export const Admin = () => {
       name: category.name,
       filter_type: category.filter_type,
       included_categories: category.included_categories || [],
+      section: category.section || 'BUILDER',
     });
   };
 
@@ -501,6 +636,7 @@ export const Admin = () => {
           slug: slug,
           filter_type: editCategoryData.filter_type,
           included_categories: editCategoryData.filter_type === 'MIX' ? editCategoryData.included_categories : null,
+          section: editCategoryData.section,
         })
         .eq('id', editingCategoryId);
 
@@ -724,44 +860,338 @@ export const Admin = () => {
             <div>
               <h2 className="text-2xl font-bold text-gray-800 mb-6">Product Management</h2>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Left Column: Category & Product List */}
+              <div className="max-w-4xl">
+                {/* Category & Product List */}
                 <div className="bg-white rounded-lg shadow p-6">
                   <h3 className="text-lg font-semibold text-gray-800 mb-4">Category / Product List</h3>
 
                   {/* Add Category Section */}
                   <div className="mb-6 p-4 bg-gray-50 rounded-lg">
                     <label className="block text-sm font-medium text-gray-700 mb-2">Add New Category</label>
-                    <div className="flex gap-2">
+                    <div className="space-y-3">
                       <input
                         type="text"
                         value={newCategoryName}
                         onChange={(e) => setNewCategoryName(e.target.value)}
                         placeholder="Enter category name"
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                         onKeyPress={(e) => {
                           if (e.key === 'Enter') {
                             handleAddCategory();
                           }
                         }}
                       />
+                      <div className="flex items-center gap-4">
+                        <label className="text-sm font-medium text-gray-700">Section:</label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            value="SHOP"
+                            checked={newCategorySection === 'SHOP'}
+                            onChange={(e) => setNewCategorySection(e.target.value as 'SHOP' | 'BUILDER')}
+                            className="w-4 h-4 text-blue-600"
+                          />
+                          <span className="text-sm text-gray-700">SHOP</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            value="BUILDER"
+                            checked={newCategorySection === 'BUILDER'}
+                            onChange={(e) => setNewCategorySection(e.target.value as 'SHOP' | 'BUILDER')}
+                            className="w-4 h-4 text-blue-600"
+                          />
+                          <span className="text-sm text-gray-700">BUILDER</span>
+                        </label>
+                      </div>
                       <button
                         onClick={handleAddCategory}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                        className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                       >
                         <Plus size={16} />
-                        Add
+                        Add Category
                       </button>
                     </div>
                   </div>
+
+                  <button
+                    onClick={handleOpenAddModal}
+                    className="w-full mb-4 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 font-semibold"
+                  >
+                    <Plus size={18} />
+                    Add Product
+                  </button>
 
                   {loading ? (
                     <div className="text-gray-500 text-sm">Loading...</div>
                   ) : groupedProducts.length === 0 ? (
                     <div className="text-gray-500 text-sm">No categories yet</div>
                   ) : (
-                    <div className="space-y-4">
-                      {groupedProducts.map((category, index) => (
+                    <div className="space-y-6">
+                      {groupedProducts.filter(c => c.section === 'SHOP').length > 0 && (
+                        <div>
+                          <h4 className="text-md font-bold text-purple-700 mb-3 flex items-center gap-2">
+                            <span>🛒</span>
+                            <span>SHOP Categories</span>
+                          </h4>
+                          <div className="space-y-4">
+                            {groupedProducts.filter(c => c.section === 'SHOP').map((category, index) => (
+                              <div key={category.id} className="border border-gray-200 rounded-lg p-4">
+                                {editingCategoryId === category.id ? (
+                                  <div className="space-y-4">
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">Category Name</label>
+                                      <input
+                                        type="text"
+                                        value={editCategoryData.name}
+                                        onChange={(e) => setEditCategoryData(prev => ({ ...prev, name: e.target.value }))}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">Section</label>
+                                      <div className="flex items-center gap-4 p-3 border border-gray-300 rounded-lg">
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                          <input
+                                            type="radio"
+                                            value="SHOP"
+                                            checked={editCategoryData.section === 'SHOP'}
+                                            onChange={(e) => setEditCategoryData(prev => ({ ...prev, section: e.target.value as 'SHOP' | 'BUILDER' }))}
+                                            className="w-4 h-4 text-blue-600"
+                                          />
+                                          <span className="text-sm text-gray-700">SHOP</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                          <input
+                                            type="radio"
+                                            value="BUILDER"
+                                            checked={editCategoryData.section === 'BUILDER'}
+                                            onChange={(e) => setEditCategoryData(prev => ({ ...prev, section: e.target.value as 'SHOP' | 'BUILDER' }))}
+                                            className="w-4 h-4 text-blue-600"
+                                          />
+                                          <span className="text-sm text-gray-700">BUILDER</span>
+                                        </label>
+                                      </div>
+                                    </div>
+
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">Filter Mode</label>
+                                      <select
+                                        value={editCategoryData.filter_type}
+                                        onChange={(e) => setEditCategoryData(prev => ({ ...prev, filter_type: e.target.value as 'SINGLE' | 'ALL' | 'MIX' }))}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                      >
+                                        <option value="SINGLE">SINGLE - Show this category only</option>
+                                        <option value="ALL">ALL - Show all products</option>
+                                        <option value="MIX">MIX - Combine multiple categories</option>
+                                      </select>
+                                    </div>
+
+                                    {editCategoryData.filter_type === 'MIX' && (
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                          Included Categories
+                                        </label>
+                                        <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                                          {categories.filter(c => c.id !== category.id).map(cat => (
+                                            <label key={cat.id} className="flex items-center gap-2 cursor-pointer">
+                                              <input
+                                                type="checkbox"
+                                                checked={editCategoryData.included_categories?.includes(cat.name) || false}
+                                                onChange={() => toggleIncludedCategory(cat.name)}
+                                                className="w-4 h-4 text-blue-600"
+                                              />
+                                              <span className="text-sm text-gray-700">{cat.name}</span>
+                                            </label>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={handleSaveCategory}
+                                        className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                                      >
+                                        <Save size={16} />
+                                        Save
+                                      </button>
+                                      <button
+                                        onClick={handleCancelEdit}
+                                        className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="flex items-center justify-between mb-3">
+                                      <div className="flex items-center gap-3">
+                                        <div className="flex flex-col gap-1">
+                                          <button
+                                            onClick={() => handleMoveCategoryUp(categories.findIndex(c => c.id === category.id))}
+                                            disabled={categories.findIndex(c => c.id === category.id) === 0}
+                                            className={`p-1 rounded transition-colors ${
+                                              categories.findIndex(c => c.id === category.id) === 0
+                                                ? 'text-gray-300 cursor-not-allowed'
+                                                : 'text-gray-600 hover:bg-gray-200'
+                                            }`}
+                                            title="Move Up"
+                                          >
+                                            <ChevronUp size={16} />
+                                          </button>
+                                          <button
+                                            onClick={() => handleMoveCategoryDown(categories.findIndex(c => c.id === category.id))}
+                                            disabled={categories.findIndex(c => c.id === category.id) === categories.length - 1}
+                                            className={`p-1 rounded transition-colors ${
+                                              categories.findIndex(c => c.id === category.id) === categories.length - 1
+                                                ? 'text-gray-300 cursor-not-allowed'
+                                                : 'text-gray-600 hover:bg-gray-200'
+                                            }`}
+                                            title="Move Down"
+                                          >
+                                            <ChevronDown size={16} />
+                                          </button>
+                                        </div>
+                                        <button
+                                          onClick={() => handleToggleCategoryVisibility(category.id, category.is_hidden)}
+                                          className={`p-1.5 rounded transition-colors ${
+                                            category.is_hidden
+                                              ? 'text-gray-400 hover:bg-gray-100'
+                                              : 'text-green-600 hover:bg-green-50'
+                                          }`}
+                                          title={category.is_hidden ? 'Category Hidden - Click to Show' : 'Category Visible - Click to Hide'}
+                                        >
+                                          {category.is_hidden ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        </button>
+                                        <div>
+                                          <h4 className={`font-semibold ${category.is_hidden ? 'text-gray-400' : 'text-gray-700'}`}>
+                                            {category.name}
+                                            {category.is_hidden && <span className="ml-2 text-xs">(Hidden)</span>}
+                                          </h4>
+                                          <div className="text-xs text-gray-500">
+                                            {category.filter_type === 'ALL' && 'Shows all products'}
+                                            {category.filter_type === 'SINGLE' && 'Standard category'}
+                                            {category.filter_type === 'MIX' && `Mix: ${category.included_categories?.join(', ') || 'None'}`}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          onClick={() => handleEditCategory(category)}
+                                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                          title="Edit Category"
+                                        >
+                                          <Edit2 size={16} />
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteCategory(category.id, category.slug)}
+                                          className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                          title="Delete Category"
+                                        >
+                                          <Trash2 size={16} />
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {category.items.length === 0 ? (
+                                      <div className="text-sm text-gray-400 italic">No products in this category</div>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        {category.items.map(product => (
+                                          <div
+                                            key={product.id}
+                                            className="flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors"
+                                          >
+                                            <div className="flex items-center gap-3">
+                                              {product.image && (
+                                                <img
+                                                  src={product.image}
+                                                  alt={product.name}
+                                                  className="w-10 h-10 object-cover rounded"
+                                                />
+                                              )}
+                                              <div>
+                                                <div className="text-sm font-medium text-gray-800">{product.name}</div>
+                                                <div className="text-xs text-gray-500">₩{product.price.toLocaleString()}</div>
+                                              </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <button
+                                                onClick={() => handleEditProduct(product.id)}
+                                                className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
+                                                title="Edit Product"
+                                              >
+                                                <Edit2 size={16} />
+                                              </button>
+                                              {movingProductId === product.id ? (
+                                                <div className="flex items-center gap-2">
+                                                  <select
+                                                    onChange={(e) => {
+                                                      if (e.target.value) {
+                                                        handleMoveProduct(product.id, e.target.value);
+                                                        setMovingProductId(null);
+                                                      }
+                                                    }}
+                                                    className="text-xs px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    autoFocus
+                                                  >
+                                                    <option value="">Select category...</option>
+                                                    {categories
+                                                      .filter(c => c.slug !== product.category)
+                                                      .map(cat => (
+                                                        <option key={cat.id} value={cat.slug}>
+                                                          {cat.name}
+                                                        </option>
+                                                      ))}
+                                                  </select>
+                                                  <button
+                                                    onClick={() => setMovingProductId(null)}
+                                                    className="p-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                                                    title="Cancel"
+                                                  >
+                                                    <X size={14} />
+                                                  </button>
+                                                </div>
+                                              ) : (
+                                                <button
+                                                  onClick={() => setMovingProductId(product.id)}
+                                                  className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                                  title="Move to Category"
+                                                >
+                                                  <FolderInput size={16} />
+                                                </button>
+                                              )}
+                                              <button
+                                                onClick={() => handleDeleteProduct(product.id)}
+                                                className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                                title="Delete"
+                                              >
+                                                <Trash2 size={16} />
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {groupedProducts.filter(c => c.section === 'BUILDER').length > 0 && (
+                        <div>
+                          <h4 className="text-md font-bold text-blue-700 mb-3 flex items-center gap-2">
+                            <span>🔧</span>
+                            <span>BUILDER Categories</span>
+                          </h4>
+                          <div className="space-y-4">
+                            {groupedProducts.filter(c => c.section === 'BUILDER').map((category, index) => (
                         <div key={category.id} className="border border-gray-200 rounded-lg p-4">
                           {editingCategoryId === category.id ? (
                             <div className="space-y-4">
@@ -773,6 +1203,32 @@ export const Admin = () => {
                                   onChange={(e) => setEditCategoryData(prev => ({ ...prev, name: e.target.value }))}
                                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                                 />
+                              </div>
+
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Section</label>
+                                <div className="flex items-center gap-4 p-3 border border-gray-300 rounded-lg">
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                      type="radio"
+                                      value="SHOP"
+                                      checked={editCategoryData.section === 'SHOP'}
+                                      onChange={(e) => setEditCategoryData(prev => ({ ...prev, section: e.target.value as 'SHOP' | 'BUILDER' }))}
+                                      className="w-4 h-4 text-blue-600"
+                                    />
+                                    <span className="text-sm text-gray-700">SHOP</span>
+                                  </label>
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                      type="radio"
+                                      value="BUILDER"
+                                      checked={editCategoryData.section === 'BUILDER'}
+                                      onChange={(e) => setEditCategoryData(prev => ({ ...prev, section: e.target.value as 'SHOP' | 'BUILDER' }))}
+                                      className="w-4 h-4 text-blue-600"
+                                    />
+                                    <span className="text-sm text-gray-700">BUILDER</span>
+                                  </label>
+                                </div>
                               </div>
 
                               <div>
@@ -870,6 +1326,13 @@ export const Admin = () => {
                                     <h4 className={`font-semibold ${category.is_hidden ? 'text-gray-400' : 'text-gray-700'}`}>
                                       {category.name}
                                       {category.is_hidden && <span className="ml-2 text-xs">(Hidden)</span>}
+                                      <span className={`ml-2 text-xs px-2 py-0.5 rounded ${
+                                        category.section === 'SHOP'
+                                          ? 'bg-purple-100 text-purple-700'
+                                          : 'bg-blue-100 text-blue-700'
+                                      }`}>
+                                        {category.section}
+                                      </span>
                                     </h4>
                                     <div className="text-xs text-gray-500">
                                       {category.filter_type === 'ALL' && 'Shows all products'}
@@ -919,6 +1382,13 @@ export const Admin = () => {
                                         </div>
                                       </div>
                                       <div className="flex items-center gap-2">
+                                        <button
+                                          onClick={() => handleEditProduct(product.id)}
+                                          className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
+                                          title="Edit Product"
+                                        >
+                                          <Edit2 size={16} />
+                                        </button>
                                         {movingProductId === product.id ? (
                                           <div className="flex items-center gap-2">
                                             <select
@@ -974,16 +1444,32 @@ export const Admin = () => {
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+                    </div>
                   )}
                 </div>
+              </div>
 
-                {/* Right Column: Product Registration Form */}
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Product Registration / Details</h3>
+              {/* Product Form Modal */}
+              {isModalOpen && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                  <div className="bg-white rounded-lg shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+                    <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                      <h3 className="text-xl font-bold text-gray-800">
+                        {editingProductId ? 'Edit Product' : 'Add New Product'}
+                      </h3>
+                      <button
+                        onClick={handleCloseModal}
+                        className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                      >
+                        <X size={24} />
+                      </button>
+                    </div>
 
-                  <form onSubmit={handleAddProduct} className="space-y-4">
+                    <form onSubmit={handleAddProduct} className="p-6 space-y-6">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Product Name</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Product Name *</label>
                       <input
                         type="text"
                         name="name"
@@ -996,48 +1482,144 @@ export const Admin = () => {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-                      <select
-                        name="category"
-                        value={formData.category}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                        required
-                      >
-                        {categories.length === 0 ? (
-                          <option value="">No categories available</option>
-                        ) : (
-                          categories.map(cat => (
-                            <option key={cat.id} value={cat.slug}>
-                              {cat.name}
-                            </option>
-                          ))
-                        )}
-                      </select>
+                      <label className="block text-sm font-medium text-gray-700 mb-3">Section *</label>
+                      <div className="flex gap-4">
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, section: 'SHOP', categories: [] })}
+                          className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${
+                            formData.section === 'SHOP'
+                              ? 'bg-purple-600 text-white shadow-md'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          SHOP
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, section: 'BUILDER', categories: [] })}
+                          className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${
+                            formData.section === 'BUILDER'
+                              ? 'bg-blue-600 text-white shadow-md'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          BUILDER
+                        </button>
+                      </div>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Price (₩)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Categories * (Select at least one)
+                      </label>
+                      <div className="border border-gray-300 rounded-lg p-3 max-h-40 overflow-y-auto space-y-2">
+                        {categories.filter(cat => cat.section === formData.section).length === 0 ? (
+                          <p className="text-gray-500 text-sm">No categories available for this section</p>
+                        ) : (
+                          categories
+                            .filter(cat => cat.section === formData.section)
+                            .map(cat => (
+                              <label key={cat.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                                <input
+                                  type="checkbox"
+                                  checked={formData.categories.includes(cat.slug)}
+                                  onChange={() => toggleCategorySelection(cat.slug)}
+                                  className="w-4 h-4 text-blue-600"
+                                />
+                                <span className="text-sm text-gray-700">{cat.name}</span>
+                              </label>
+                            ))
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Sub Category (Optional)</label>
                       <input
-                        type="number"
-                        name="price"
-                        value={formData.price}
+                        type="text"
+                        name="sub_category"
+                        value={formData.sub_category}
                         onChange={handleInputChange}
-                        placeholder="0"
+                        placeholder="Enter sub category"
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                        required
                       />
                     </div>
 
                     <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Product Status *</label>
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2 cursor-pointer p-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                          <input
+                            type="radio"
+                            name="status"
+                            value="active"
+                            checked={formData.status === 'active'}
+                            onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'sold_out' | 'hidden' })}
+                            className="w-4 h-4 text-green-600"
+                          />
+                          <span className="text-green-600">●</span>
+                          <span className="text-sm font-medium text-gray-700">Active (Sale)</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer p-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                          <input
+                            type="radio"
+                            name="status"
+                            value="sold_out"
+                            checked={formData.status === 'sold_out'}
+                            onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'sold_out' | 'hidden' })}
+                            className="w-4 h-4 text-red-600"
+                          />
+                          <span className="text-red-600">●</span>
+                          <span className="text-sm font-medium text-gray-700">Sold Out</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer p-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                          <input
+                            type="radio"
+                            name="status"
+                            value="hidden"
+                            checked={formData.status === 'hidden'}
+                            onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'sold_out' | 'hidden' })}
+                            className="w-4 h-4 text-gray-600"
+                          />
+                          <span className="text-gray-400">●</span>
+                          <span className="text-sm font-medium text-gray-700">Hidden (No exposure)</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Regular Price (₩) *</label>
+                        <input
+                          type="number"
+                          name="price"
+                          value={formData.price}
+                          onChange={handleInputChange}
+                          placeholder="0"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Sale Price (₩)</label>
+                        <input
+                          type="number"
+                          name="sale_price"
+                          value={formData.sale_price}
+                          onChange={handleInputChange}
+                          placeholder="Optional"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                      <textarea
-                        name="description"
+                      <RichTextEditor
                         value={formData.description}
-                        onChange={handleInputChange}
-                        placeholder="Enter product description"
-                        rows={3}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
+                        onChange={(value) => setFormData({ ...formData, description: value })}
+                        placeholder="Enter product description..."
                       />
                     </div>
 
@@ -1159,30 +1741,20 @@ export const Admin = () => {
                         disabled={uploading}
                         className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                       >
-                        {uploading ? 'Uploading...' : 'Register'}
+                        {uploading ? 'Uploading...' : (editingProductId ? 'Update Product' : 'Add Product')}
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          const firstCategory = categories.length > 0 ? categories[0].slug : '';
-                          setFormData({ name: '', category: firstCategory, price: '', description: '', is_best: false, is_new: false });
-                          setMainImageFile(null);
-                          setMainImagePreviewUrl('');
-                          setGalleryFiles([]);
-                          setGalleryPreviewUrls([]);
-                          const mainInput = document.getElementById('main-image-input') as HTMLInputElement;
-                          const galleryInput = document.getElementById('gallery-input') as HTMLInputElement;
-                          if (mainInput) mainInput.value = '';
-                          if (galleryInput) galleryInput.value = '';
-                        }}
+                        onClick={handleCloseModal}
                         className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors"
                       >
                         Cancel
                       </button>
                     </div>
                   </form>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 

@@ -60,22 +60,42 @@ export const ProductCard = ({ product, onAddToCanvas }: ProductCardProps) => {
         </div>
       </div>
 
-      <div className="aspect-square bg-zinc-900 flex items-center justify-center overflow-hidden">
+      <div className="aspect-square bg-zinc-900 flex items-center justify-center overflow-hidden relative">
         {product.image ? (
           <img
             src={product.image}
             alt={product.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+            className={`w-full h-full object-cover group-hover:scale-105 transition-transform ${
+              product.status === 'sold_out' ? 'opacity-50' : ''
+            }`}
           />
         ) : (
           <div className="text-white/20 text-sm">NO IMAGE</div>
         )}
+        {product.status === 'sold_out' && (
+          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+            <div className="bg-red-600 text-white px-6 py-2 font-bold text-sm tracking-wider">
+              SOLD OUT
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="p-3 pt-2">
-        <div className="font-semibold text-sm" style={{ color: 'var(--accent-color)' }}>
-          ₩{product.price.toLocaleString()}
-        </div>
+        {product.sale_price && product.sale_price < product.price ? (
+          <div className="flex items-center gap-2">
+            <div className="text-xs text-gray-500 line-through">
+              ₩{product.price.toLocaleString()}
+            </div>
+            <div className="font-semibold text-sm" style={{ color: 'var(--accent-color)' }}>
+              ₩{product.sale_price.toLocaleString()}
+            </div>
+          </div>
+        ) : (
+          <div className="font-semibold text-sm" style={{ color: 'var(--accent-color)' }}>
+            ₩{product.price.toLocaleString()}
+          </div>
+        )}
       </div>
     </div>
   );

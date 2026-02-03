@@ -4,6 +4,7 @@ import { ShoppingCart, Search, User, UserPlus, X, LogOut, UserCircle } from 'luc
 import { useSiteSettings } from '../context/SiteSettingsContext';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { useSection } from '../context/SectionContext';
 import { AnnouncementBar } from './AnnouncementBar';
 
 interface HeaderProps {
@@ -17,6 +18,7 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
   const { settings } = useSiteSettings();
   const { user, signOut } = useAuth();
   const { cartItems } = useCart();
+  const { currentSection, setCurrentSection } = useSection();
   const brandName = settings?.brand_name || 'KETCH';
   const cartCount = cartItems.length;
   const [showSearch, setShowSearch] = useState(false);
@@ -51,31 +53,57 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
       <AnnouncementBar />
       <div className="w-full border-b border-white/30 bg-black">
         <div className="max-w-[1300px] mx-auto px-6 py-4 flex items-center justify-between">
-        <div className="flex-1">
-          {settings?.logo_url ? (
-            <img
-              src={settings.logo_url}
-              alt={brandName}
-              className="cursor-pointer"
-              style={{
-                width: typeof settings.logo_width === 'number'
-                  ? `${settings.logo_width}px`
-                  : (settings.logo_width || '120px'),
-                height: 'auto',
-                maxHeight: '60px',
-                maxWidth: 'none',
-                objectFit: 'contain'
-              }}
-              onClick={handleLogoClick}
-            />
-          ) : (
-            <h1
-              className="text-3xl font-bold italic tracking-wider text-white cursor-pointer"
-              onClick={handleLogoClick}
+        <div className="flex items-center gap-6 flex-1">
+          <div>
+            {settings?.logo_url ? (
+              <img
+                src={settings.logo_url}
+                alt={brandName}
+                className="cursor-pointer"
+                style={{
+                  width: typeof settings.logo_width === 'number'
+                    ? `${settings.logo_width}px`
+                    : (settings.logo_width || '120px'),
+                  height: 'auto',
+                  maxHeight: '60px',
+                  maxWidth: 'none',
+                  objectFit: 'contain'
+                }}
+                onClick={handleLogoClick}
+              />
+            ) : (
+              <h1
+                className="text-3xl font-bold italic tracking-wider text-white cursor-pointer"
+                onClick={handleLogoClick}
+              >
+                {brandName}
+              </h1>
+            )}
+          </div>
+
+          <div className="flex items-center gap-4 py-1 border-l border-white/30 pl-6">
+            <button
+              onClick={() => setCurrentSection('SHOP')}
+              className={`text-lg font-bold uppercase tracking-wider whitespace-nowrap transition-colors ${
+                currentSection === 'SHOP'
+                  ? 'text-cyan-400'
+                  : 'text-white/70 hover:text-white'
+              }`}
             >
-              {brandName}
-            </h1>
-          )}
+              SHOP
+            </button>
+            <span className="text-white/30">|</span>
+            <button
+              onClick={() => setCurrentSection('BUILDER')}
+              className={`text-lg font-bold uppercase tracking-wider whitespace-nowrap transition-colors ${
+                currentSection === 'BUILDER'
+                  ? 'text-cyan-400'
+                  : 'text-white/70 hover:text-white'
+              }`}
+            >
+              BUILDER
+            </button>
+          </div>
         </div>
 
         <nav className="flex items-center gap-6">

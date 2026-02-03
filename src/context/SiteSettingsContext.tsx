@@ -21,6 +21,16 @@ interface SiteSettings {
   favicon_url: string | null;
   site_title: string | null;
   banner_height: number;
+  shop_banner_images: string[] | null;
+  banner_transition: string | null;
+  banner_speed: number | null;
+  main_video_url: string | null;
+  shop_home_categories: string[] | null;
+  builder_home_categories: string[] | null;
+  builder_banner_images: string[] | null;
+  shop_banner_height: string | null;
+  builder_banner_height: string | null;
+  builder_banner_ratio: string | null;
 }
 
 interface SiteSettingsContextType {
@@ -37,6 +47,7 @@ export const SiteSettingsProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchSettings = async () => {
     try {
+      console.log('🔍 SiteSettingsContext: Fetching settings...');
       const { data, error } = await supabase
         .from('site_settings')
         .select('*')
@@ -46,6 +57,10 @@ export const SiteSettingsProvider = ({ children }: { children: ReactNode }) => {
       if (error) throw error;
 
       if (data) {
+        console.log('✓ SiteSettingsContext: Settings fetched:', {
+          builder_home_categories: data.builder_home_categories,
+          shop_home_categories: data.shop_home_categories
+        });
         setSettings(data);
 
         document.documentElement.style.setProperty('--accent-color', data.accent_color || '#34d399');
@@ -67,9 +82,11 @@ export const SiteSettingsProvider = ({ children }: { children: ReactNode }) => {
           }
           link.href = data.favicon_url;
         }
+      } else {
+        console.log('⚠️ SiteSettingsContext: No settings data found');
       }
     } catch (err) {
-      console.error('Failed to fetch site settings:', err);
+      console.error('❌ SiteSettingsContext: Failed to fetch site settings:', err);
     } finally {
       setLoading(false);
     }
