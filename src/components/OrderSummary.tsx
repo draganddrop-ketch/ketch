@@ -1,112 +1,100 @@
-import { ShoppingCart, CreditCard, Heart, Share2 } from 'lucide-react';
-
-interface OrderItem {
-  id: string;
-  name: string;
-  price: number;
-}
+import { Heart, Share2, ShoppingCart, CreditCard } from 'lucide-react';
+import { useCanvas } from '../context/CanvasContext';
 
 interface OrderSummaryProps {
-  items: OrderItem[];
+  items: { id: string; name: string; price: number }[];
   onAddToCart: () => void;
   onCheckout: () => void;
-  onSaveDesign?: () => void;
-  onShare?: () => void;
+  onSaveDesign: () => void;
+  onShare: () => void;
 }
 
 export const OrderSummary = ({ items, onAddToCart, onCheckout, onSaveDesign, onShare }: OrderSummaryProps) => {
   const totalPrice = items.reduce((sum, item) => sum + item.price, 0);
+  const { selectItem, selectedId } = useCanvas();
 
   return (
-    <div className="bg-black border border-white/30 p-6">
-      <h3 className="text-white font-bold uppercase tracking-wider mb-4 text-sm">
+    <div className="border border-white/30 bg-black p-6">
+      <h2 className="text-white font-bold uppercase tracking-wider mb-2 text-sm">
         ORDER SUMMARY
-      </h3>
+      </h2>
 
-      <div className="space-y-3 mb-6 max-h-40 overflow-y-auto">
+      <div className="space-y-0.2 mb-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
         {items.length === 0 ? (
-          <div className="text-white/40 text-xs italic">No items added yet</div>
+          <p className="text-zinc-500 text-sm py-1">No items selected</p>
         ) : (
           items.map((item, index) => (
-            <div key={item.id} className="flex justify-between items-start text-xs">
-              <div className="text-white/70 flex-1">
-                <span className="mr-2" style={{ color: 'var(--accent-color)' }}>{index + 1}.</span>
+            <div 
+              key={index} 
+              onClick={() => selectItem(item.id)}
+              // ★ 수정 포인트: 
+              // 1. px-2 -mx-2 py-1 rounded : 모든 아이템에 미리 적용 (공간 확보)
+              // 2. 선택되면 bg-white/10, 안 되면 hover:bg-white/5 (투명도 차이만 둠)
+              className={`flex justify-between text-sm cursor-pointer transition-all px-2 -mx-2 py-1 rounded ${
+                selectedId === item.id 
+                  ? 'bg-white/10' 
+                  : 'hover:bg-white/5 text-zinc-300'
+              }`}
+            >
+              <span className={`truncate mr-4 ${selectedId === item.id ? 'text-white font-bold' : ''}`}>
+                <span className="text-[#34d399] mr-2">{index + 1}.</span> 
                 {item.name}
-              </div>
-              <div className="font-semibold ml-3" style={{ color: 'var(--accent-color)' }}>
+              </span>
+              <span className="text-[#34d399] font-mono whitespace-nowrap font-bold">
                 ₩{item.price.toLocaleString()}
-              </div>
+              </span>
             </div>
           ))
         )}
       </div>
 
-      <div className="border-t border-white/30 pt-4 mb-6">
-        <div className="flex justify-between items-center">
-          <span className="text-white/70 uppercase text-sm tracking-wide">
-            ITEM PRICE
-          </span>
-          <span className="text-2xl font-bold" style={{ color: 'var(--accent-color)' }}>
+      <div className="border-t border-white/20 pt-4 mb-6">
+        <div className="flex justify-between items-end">
+          <span className="text-zinc-400 text-sm uppercase tracking-wider">ITEM PRICE</span>
+          <span className="text-[#34d399] text-2xl font-bold font-mono">
             ₩{totalPrice.toLocaleString()}
           </span>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          onClick={onAddToCart}
-          disabled={items.length === 0}
-          className="bg-white/10 text-white border border-white/30 py-3 px-4 uppercase text-sm font-semibold tracking-wide transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          onMouseEnter={(e) => {
-            if (items.length > 0) {
-              e.currentTarget.style.backgroundColor = 'rgba(var(--accent-color-rgb), 0.2)';
-              e.currentTarget.style.borderColor = 'var(--accent-color)';
-            }
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
-          }}
-        >
-          <ShoppingCart size={16} />
-          ADD CART
-        </button>
-        <button
-          onClick={onCheckout}
-          disabled={items.length === 0}
-          className="text-black py-3 px-4 uppercase text-sm font-bold tracking-wide transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          style={{
-            backgroundColor: 'var(--accent-color)',
-          }}
-          onMouseEnter={(e) => {
-            if (items.length > 0) {
-              e.currentTarget.style.filter = 'brightness(1.1)';
-            }
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.filter = 'brightness(1)';
-          }}
-        >
-          <CreditCard size={16} />
-          ORDER
-        </button>
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={onAddToCart}
+            disabled={items.length === 0}
+            className="flex items-center justify-center gap-2 py-3 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-50 border border-zinc-700"
+          >
+            <ShoppingCart size={16} />
+            ADD CART
+          </button>
+          <button
+            onClick={onCheckout}
+            disabled={items.length === 0}
+            className="flex items-center justify-center gap-2 py-3 bg-[#34d399] hover:bg-[#2ebb88] text-black text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+          >
+            <CreditCard size={16} />
+            ORDER
+          </button>
+        </div>
 
-        <button
-          onClick={onSaveDesign}
-          disabled={items.length === 0}
-          className="bg-blue-600/20 text-blue-400 border border-blue-500/50 py-3 px-4 uppercase text-sm font-semibold tracking-wide transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:bg-blue-600/30 hover:border-blue-400"
-        >
-          <Heart size={16} />
-          SAVE DESIGN
-        </button>
-        <button
-          onClick={onShare}
-          disabled={items.length === 0}
-          className="bg-blue-600/20 text-blue-400 border border-blue-500/50 py-3 px-4 uppercase text-sm font-semibold tracking-wide transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:bg-blue-600/30 hover:border-blue-400"
-        >
-          <Share2 size={16} />
-          SHARE
-        </button>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={onSaveDesign}
+            disabled={items.length === 0}
+            className="flex items-center justify-center gap-2 py-3 border border-blue-900/50 bg-[#0f172a] hover:bg-[#1e293b] text-blue-400 text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+          >
+            <Heart size={16} />
+            SAVE DESIGN
+          </button>
+          <button
+            onClick={onShare}
+            disabled={items.length === 0}
+            className="flex items-center justify-center gap-2 py-3 border border-blue-900/50 bg-[#0f172a] hover:bg-[#1e293b] text-blue-400 text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+          >
+            <Share2 size={16} />
+            SHARE
+          </button>
+        </div>
       </div>
     </div>
   );

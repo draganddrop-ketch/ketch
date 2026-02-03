@@ -1,179 +1,197 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, CreditCard, Plus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Header } from '../components/Header';
-
-interface Product {
-  id: string;
-  name: string;
-  category: string;
-  price: number;
-  description: string;
-  image_url: string;
-  gallery_images: string[];
-}
+import { KeyringItem } from '../types';
+import { useCart } from '../context/CartContext';
+import { useCanvas } from '../context/CanvasContext';
 
 export const ProductDetail = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams();
   const navigate = useNavigate();
-  const [product, setProduct] = useState<Product | null>(null);
+  const { addToCart } = useCart();
+  const { addItemToCanvas } = useCanvas();
+  const [product, setProduct] = useState<KeyringItem | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedImage, setSelectedImage] = useState<string>('');
+  const [activeImage, setActiveImage] = useState<string>('');
 
   useEffect(() => {
-    if (id) {
-      fetchProduct();
-    }
+    fetchProduct();
   }, [id]);
 
   const fetchProduct = async () => {
     try {
+      if (!id) return;
       const { data, error } = await supabase
         .from('products')
         .select('*')
         .eq('id', id)
-        .maybeSingle();
+        .single();
 
       if (error) throw error;
 
-      if (data) {
-        setProduct(data);
-        setSelectedImage(data.image_url || '');
-      }
-    } catch (err) {
-      console.error('Failed to fetch product:', err);
+      const formattedProduct: KeyringItem = {
+        id: data.id,
+        name: data.name,
+        category: data.category,
+        price: data.price,
+        sale_price: data.sale_price,
+        image: data.image_url,
+        description: data.description,
+        gallery_images: data.gallery_images,
+        status: data.status,
+      };
+
+      setProduct(formattedProduct);
+      setActiveImage(formattedProduct.image);
+    } catch (error) {
+      console.error('Error fetching product:', error);
+      navigate('/');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAddToCanvas = () => {
-    if (product && (window as any).__addItemToCanvas) {
-      (window as any).__addItemToCanvas({
-        id: product.id,
-        name: product.name,
-        category: product.category,
-        price: product.price,
-        image: product.image_url,
-      });
-      navigate('/');
-    }
+  const handleAddToCart = () => {
+    if (!product) return;
+    addToCart({
+      id: product.id,
+      name: product.name,
+      price: product.sale_price || product.price,
+      image: product.image,
+      quantity: 1,
+    });
+    alert('Added to Cart!');
   };
 
-  if (loading) {
-    return (
-      <div className="flex h-screen bg-black items-center justify-center">
-        <div className="text-center">
-          <div className="text-zinc-700 text-sm mb-2">LOADING_PRODUCT...</div>
-          <div className="text-zinc-800 text-xs">FETCHING_DETAILS</div>
-        </div>
-      </div>
-    );
-  }
+  const handleOrder = () => {
+    if (!product) return;
+    handleAddToCart(); // 장바구니에 담고
+    navigate('/cart'); // 바로 장바구니(결제예정) 페이지로 이동
+  };
 
-  if (!product) {
-    return (
-      <div className="flex h-screen bg-black items-center justify-center">
-        <div className="text-center">
-          <div className="text-zinc-700 text-lg mb-4">PRODUCT_NOT_FOUND</div>
-          <button
-            onClick={() => navigate('/')}
-            className="px-6 py-2 bg-cyan-400 text-black font-medium hover:bg-cyan-300 transition-colors"
-          >
-            Return Home
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const handleAddToDropZone = () => {
+    if (!product) return;
+    addItemToCanvas(product);
+  };
 
-  const allImages = [
-    product.image_url,
-    ...(product.gallery_images || []),
-  ].filter(Boolean);
+  if (loading) return <div className="min-h-screen bg-black text-white flex items-center justify-center">Loading...</div>;
+  if (!product) return null;
 
   return (
-    <div className="min-h-screen bg-black">
-      <Header cartCount={0} />
+    <div className="min-h-screen bg-black text-white">
+      <Header cartCount={0} onSearchChange={() => {}} />
 
-      <div className="max-w-[1300px] mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-6 py-8">
         <button
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 mb-6 transition-colors"
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors"
         >
           <ArrowLeft size={20} />
-          Back to Products
+          BACK
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+          {/* Image Section */}
           <div className="space-y-4">
-            <div className="aspect-square bg-zinc-900 border border-white/30 flex items-center justify-center overflow-hidden">
-              {selectedImage ? (
-                <img
-                  src={selectedImage}
-                  alt={product.name}
-                  className="w-full h-full object-contain"
-                />
-              ) : (
-                <div className="text-white/20 text-lg">NO IMAGE</div>
-              )}
+            <div className="aspect-square bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800">
+              <img
+                src={activeImage}
+                alt={product.name}
+                className="w-full h-full object-cover"
+              />
             </div>
-
-            {allImages.length > 1 && (
-              <div className="grid grid-cols-4 gap-3">
-                {allImages.map((img, index) => (
+            {product.gallery_images && product.gallery_images.length > 0 && (
+              <div className="grid grid-cols-4 gap-4">
+                <button
+                  onClick={() => setActiveImage(product.image)}
+                  className={`aspect-square rounded-lg overflow-hidden border ${
+                    activeImage === product.image ? 'border-white' : 'border-zinc-800'
+                  }`}
+                >
+                  <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                </button>
+                {product.gallery_images.map((img, index) => (
                   <button
                     key={index}
-                    onClick={() => setSelectedImage(img)}
-                    className={`aspect-square bg-zinc-900 border-2 transition-all overflow-hidden ${
-                      selectedImage === img
-                        ? 'border-cyan-400'
-                        : 'border-white/30 hover:border-white/50'
+                    onClick={() => setActiveImage(img)}
+                    className={`aspect-square rounded-lg overflow-hidden border ${
+                      activeImage === img ? 'border-white' : 'border-zinc-800'
                     }`}
                   >
-                    <img
-                      src={img}
-                      alt={`View ${index + 1}`}
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={img} alt={`${product.name} ${index + 1}`} className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>
             )}
           </div>
 
-          <div className="space-y-6">
+          {/* Info Section */}
+          <div className="space-y-8">
             <div>
-              <div className="text-xs text-cyan-400 uppercase tracking-wider mb-2">
-                {product.category}
+              <div className="flex items-center gap-4 mb-2">
+                <span className="px-3 py-1 bg-zinc-800 rounded-full text-xs font-medium text-gray-300">
+                  {product.category}
+                </span>
+                {product.status === 'soldout' && (
+                  <span className="px-3 py-1 bg-red-900/50 text-red-200 rounded-full text-xs font-medium border border-red-800">
+                    SOLD OUT
+                  </span>
+                )}
               </div>
-              <h1 className="text-4xl text-white font-bold mb-4">
-                {product.name}
-              </h1>
-              <div className="text-3xl text-cyan-400 font-bold">
-                ₩{product.price.toLocaleString()}
+              <h1 className="text-4xl font-bold mb-4 font-mono">{product.name}</h1>
+              <div className="flex items-baseline gap-4">
+                <span className="text-2xl font-bold text-[#34d399]">
+                  ₩{(product.sale_price || product.price).toLocaleString()}
+                </span>
+                {product.sale_price && (
+                  <span className="text-lg text-gray-500 line-through">
+                    ₩{product.price.toLocaleString()}
+                  </span>
+                )}
               </div>
             </div>
 
-            {product.description && (
-              <div className="border-t border-white/20 pt-6">
-                <h2 className="text-white font-bold uppercase tracking-wider mb-3 text-sm">
-                  DESCRIPTION
-                </h2>
-                <p className="text-zinc-400 leading-relaxed whitespace-pre-wrap">
-                  {product.description}
-                </p>
-              </div>
-            )}
+            <div className="prose prose-invert max-w-none">
+              <p className="text-gray-400 leading-relaxed whitespace-pre-wrap">
+                {product.description || "No description available."}
+              </p>
+            </div>
 
-            <div className="border-t border-white/20 pt-6">
+            {/* Action Buttons */}
+            <div className="space-y-3 pt-6 border-t border-zinc-800">
+              {/* 1. Add to Drop Zone Button */}
               <button
-                onClick={handleAddToCanvas}
-                className="w-full px-8 py-4 bg-cyan-400 text-black font-bold text-lg hover:bg-cyan-300 transition-colors uppercase tracking-wider"
+                onClick={handleAddToDropZone}
+                disabled={product.status === 'soldout'}
+                className="w-full py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-all border border-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Add to Canvas
+                <Plus size={20} />
+                ADD TO DROP ZONE
               </button>
+
+              <div className="grid grid-cols-2 gap-3">
+                {/* 2. Add to Cart Button */}
+                <button
+                  onClick={handleAddToCart}
+                  disabled={product.status === 'soldout'}
+                  className="py-4 bg-transparent border border-white/30 hover:border-white text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ShoppingCart size={20} />
+                  ADD TO CART
+                </button>
+
+                {/* 3. Order Button */}
+                <button
+                  onClick={handleOrder}
+                  disabled={product.status === 'soldout'}
+                  className="py-4 bg-[#34d399] hover:bg-[#2ebb88] text-black rounded-lg font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <CreditCard size={20} />
+                  ORDER
+                </button>
+              </div>
             </div>
           </div>
         </div>
