@@ -13,17 +13,12 @@ interface CanvasContextType {
   setCanvasItems: (items: CanvasItem[]) => void;
   addItemToCanvas: (product: KeyringItem) => void;
   clearCanvas: () => void;
-  // ★ 추가된 부분: 선택된 아이템 ID 관리
-  selectedId: string | null;
-  selectItem: (id: string | null) => void;
 }
 
 const CanvasContext = createContext<CanvasContextType | undefined>(undefined);
 
 export const CanvasProvider = ({ children }: { children: ReactNode }) => {
   const [canvasItems, setCanvasItems] = useState<CanvasItem[]>([]);
-  // ★ 추가된 부분: 선택 상태 관리
-  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const addItemToCanvas = (product: KeyringItem) => {
     const newItem: CanvasItem = {
@@ -34,27 +29,15 @@ export const CanvasProvider = ({ children }: { children: ReactNode }) => {
       rotation: 0,
     };
     setCanvasItems((prev) => [...prev, newItem]);
-    setSelectedId(newItem.canvasId); // 추가하자마자 선택되게 (편의성)
-  };
-
-  const selectItem = (id: string | null) => {
-    setSelectedId(id);
+    // alert('Added to Drop Zone!'); <--- 이 줄을 삭제했습니다.
   };
 
   const clearCanvas = () => {
     setCanvasItems([]);
-    setSelectedId(null);
   };
 
   return (
-    <CanvasContext.Provider value={{ 
-      canvasItems, 
-      setCanvasItems, 
-      addItemToCanvas, 
-      clearCanvas,
-      selectedId,      // ★ 내보내기
-      selectItem       // ★ 내보내기
-    }}>
+    <CanvasContext.Provider value={{ canvasItems, setCanvasItems, addItemToCanvas, clearCanvas }}>
       {children}
     </CanvasContext.Provider>
   );

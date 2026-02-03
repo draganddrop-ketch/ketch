@@ -1,28 +1,27 @@
 import { useNavigate } from 'react-router-dom';
-import { Plus, ShoppingCart } from 'lucide-react'; // ShoppingCart 아이콘 추가
+import { Plus } from 'lucide-react';
 import { KeyringItem } from '../types';
 
 interface ProductCardProps {
   product: KeyringItem;
-  onAddToCanvas: (product: KeyringItem) => void;
-  onClick?: (product: KeyringItem) => void;
-  mode?: 'SHOP' | 'BUILDER'; // ★ 모드 구분용 추가
+  onAddToCanvas: (product: KeyringItem) => void; // + 버튼 (드롭존 추가)
+  onClick?: (product: KeyringItem) => void;      // 상세페이지 이동 (새로 추가)
 }
 
-export const ProductCard = ({ product, onAddToCanvas, onClick, mode = 'BUILDER' }: ProductCardProps) => {
+export const ProductCard = ({ product, onAddToCanvas, onClick }: ProductCardProps) => {
   const navigate = useNavigate();
 
   const handleCardClick = () => {
     if (onClick) {
-      onClick(product);
+      onClick(product); // Home에서 전달받은 상세페이지 이동 함수 실행
     } else {
-      navigate(`/product/${product.id}`);
+      navigate(`/product/${product.id}`); // 비상용 기본 이동
     }
   };
 
-  const handleQuickAction = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onAddToCanvas(product); // Builder모드면 드롭존 추가, Shop모드면 장바구니 추가 함수가 실행됨
+  const handleAddClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // 상세페이지 이동 방지
+    onAddToCanvas(product);
   };
 
   return (
@@ -39,9 +38,8 @@ export const ProductCard = ({ product, onAddToCanvas, onClick, mode = 'BUILDER' 
         e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
       }}
     >
-      {/* ★ 모드에 따라 아이콘 변경 (SHOP: 장바구니, BUILDER: +) */}
       <button
-        onClick={handleQuickAction}
+        onClick={handleAddClick}
         className="absolute top-2 right-2 z-10 w-8 h-8 text-black rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
         style={{
           backgroundColor: 'var(--accent-color, #34d399)',
@@ -52,13 +50,9 @@ export const ProductCard = ({ product, onAddToCanvas, onClick, mode = 'BUILDER' 
         onMouseLeave={(e) => {
           e.currentTarget.style.filter = 'brightness(1)';
         }}
-        title={mode === 'SHOP' ? "Add to Cart" : "Add to Canvas"}
+        title="Add to Canvas"
       >
-        {mode === 'SHOP' ? (
-          <ShoppingCart size={16} strokeWidth={2.5} />
-        ) : (
-          <Plus size={20} strokeWidth={3} />
-        )}
+        <Plus size={20} strokeWidth={3} />
       </button>
 
       <div className="p-3 pb-2">

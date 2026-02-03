@@ -1,5 +1,5 @@
 import { useState, useRef, forwardRef, useImperativeHandle } from 'react';
-import { Trash2, RotateCcw, GripHorizontal, ArrowUp, ArrowDown } from 'lucide-react';
+import { Trash2, RotateCcw, GripHorizontal } from 'lucide-react';
 import { useCanvas } from '../context/CanvasContext';
 
 interface CanvasBuilderProps {
@@ -12,10 +12,10 @@ export interface CanvasBuilderRef {
 }
 
 export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({ onItemsChange, initialHeight = 700 }, ref) => {
-  // ★ selectedId, selectItem 가져오기
-  const { canvasItems, setCanvasItems, selectedId, selectItem } = useCanvas();
+  const { canvasItems, setCanvasItems } = useCanvas();
   
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [canvasHeight, setCanvasHeight] = useState(initialHeight);
   const [isResizing, setIsResizing] = useState(false);
@@ -35,7 +35,7 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
     const item = canvasItems.find((i) => i.canvasId === canvasId);
     if (!item) return;
 
-    selectItem(canvasId); // ★ 전역 함수 사용
+    setSelectedItemId(canvasId);
     setDraggedItemId(canvasId);
 
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -74,32 +74,14 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
   const handleRemove = (canvasId: string) => {
     const updatedItems = canvasItems.filter((item) => item.canvasId !== canvasId);
     setCanvasItems(updatedItems);
-    if (selectedId === canvasId) {
-      selectItem(null); // ★ 전역 함수 사용
+    if (selectedItemId === canvasId) {
+      setSelectedItemId(null);
     }
-  };
-
-  const handleLayerChange = (e: React.MouseEvent, direction: 'up' | 'down') => {
-    e.stopPropagation();
-    if (!selectedId) return;
-
-    const index = canvasItems.findIndex(item => item.canvasId === selectedId);
-    if (index === -1) return;
-
-    const newItems = [...canvasItems];
-
-    if (direction === 'up' && index < newItems.length - 1) {
-      [newItems[index], newItems[index + 1]] = [newItems[index + 1], newItems[index]];
-    } else if (direction === 'down' && index > 0) {
-      [newItems[index], newItems[index - 1]] = [newItems[index - 1], newItems[index]];
-    }
-
-    setCanvasItems(newItems);
   };
 
   const handleCanvasClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
-      selectItem(null); // ★ 바탕 클릭 시 선택 해제
+      setSelectedItemId(null);
     }
   };
 
@@ -107,7 +89,7 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
     if (canvasItems.length === 0) return;
     if (window.confirm('Are you sure you want to clear all items from the canvas?')) {
       setCanvasItems([]);
-      selectItem(null);
+      setSelectedItemId(null);
     }
   };
 
@@ -137,18 +119,17 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
 
   return (
     <div className="flex flex-col">
-      <div className="h-12 px-3 border-b border-white/30 flex items-center justify-between bg-zinc-950 shrink-0">
-        <h2 className="text-white font-bold uppercase tracking-wider text-sm pl-1">
+      <div className="p-4 border-b border-white/30 flex items-center justify-between">
+        <h2 className="text-white font-bold uppercase tracking-wider text-sm">
           DROP ZONE
         </h2>
-        
         {canvasItems.length > 0 && (
           <button
             onClick={handleResetCanvas}
-            className="text-white/40 hover:text-red-500 transition-colors p-1 flex items-center justify-center"
-            title="Reset Canvas"
+            className="flex items-center gap-2 bg-zinc-900 text-white hover:text-red-400 px-3 py-2 rounded transition-colors border border-white/20 hover:border-red-400"
           >
-            <RotateCcw size={20} strokeWidth={2.5} />
+            <RotateCcw size={14} />
+            <span className="text-xs font-medium uppercase tracking-wide">Reset</span>
           </button>
         )}
       </div>
@@ -173,15 +154,16 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
             canvasItems.map((item) => (
               <div
                 key={item.canvasId}
+                // ★ 여기 수정: w-64 h-64를 추가하여 부모 박스 크기도 고정!
                 className="absolute group canvas-item w-64 h-64"
                 style={{
                   left: `${item.x}px`,
                   top: `${item.y}px`,
-                  zIndex: draggedItemId === item.canvasId ? 1000 : selectedId === item.canvasId ? 50 : 1,
+                  zIndex: draggedItemId === item.canvasId ? 1000 : selectedItemId === item.canvasId ? 50 : 1,
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  selectItem(item.canvasId); // ★ 클릭 시 선택
+                  setSelectedItemId(item.canvasId);
                 }}
               >
                 <div
@@ -194,59 +176,41 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
                   <img
                     src={getImageUrl(item)}
                     alt={item.name}
+                    // ★ 여기 수정: max-w-none 추가 (자동 축소 방지)
                     className="w-full h-full object-contain pointer-events-none drop-shadow-2xl max-w-none"
                     draggable={false}
                   />
                 </div>
 
-                {/* ★ 전역 변수 selectedId와 비교해서 컨트롤러 표시 */}
-                {selectedId === item.canvasId && (
-                  <div className="canvas-controls absolute top-2 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-50">
+                {selectedItemId === item.canvasId && (
+                  <div className="canvas-controls absolute -top-24 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-50">
                     <div className="bg-black/90 border border-white/20 rounded px-3 py-2 flex items-center gap-2 shadow-xl backdrop-blur-sm">
                       <span className="text-[10px] text-gray-400 font-medium">L</span>
-                      <input
-                        type="range"
-                        min="-180"
-                        max="180"
-                        value={item.rotation}
-                        onChange={(e) => handleRotationChange(item.canvasId, parseInt(e.target.value))}
-                        className="w-24 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-cyan-400"
-                        onClick={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.stopPropagation()}
-                      />
+                      <div className="flex flex-col items-center">
+                        <input
+                          type="range"
+                          min="-180"
+                          max="180"
+                          value={item.rotation}
+                          onChange={(e) => handleRotationChange(item.canvasId, parseInt(e.target.value))}
+                          className="w-24 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                          onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                        />
+                      </div>
                       <span className="text-[10px] text-gray-400 font-medium">R</span>
                     </div>
 
-                    <div className="flex gap-1">
-                      <button
-                        onClick={(e) => handleLayerChange(e, 'down')}
-                        className="bg-black/80 hover:bg-zinc-700 text-white p-2 rounded border border-white/20 shadow-lg backdrop-blur-sm"
-                        title="Send Backward"
-                      >
-                        <ArrowDown size={14} />
-                      </button>
-                      
-                      <button
-                        onClick={(e) => handleLayerChange(e, 'up')}
-                        className="bg-black/80 hover:bg-zinc-700 text-white p-2 rounded border border-white/20 shadow-lg backdrop-blur-sm"
-                        title="Bring Forward"
-                      >
-                        <ArrowUp size={14} />
-                      </button>
-
-                      <div className="w-px bg-white/20 mx-1 h-auto"></div>
-
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemove(item.canvasId);
-                        }}
-                        className="bg-black/80 hover:bg-red-900/50 text-red-400 p-2 rounded border border-white/20 shadow-lg backdrop-blur-sm"
-                        title="Delete"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemove(item.canvasId);
+                      }}
+                      className="bg-red-500/90 hover:bg-red-600 text-white text-xs px-3 py-1 rounded flex items-center gap-1 shadow-lg transition-colors"
+                    >
+                      <Trash2 size={12} />
+                      Delete
+                    </button>
                   </div>
                 )}
               </div>
