@@ -13,7 +13,7 @@ import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useSection } from '../context/SectionContext';
 import { useCanvas } from '../context/CanvasContext';
-import { Layers, X, Wrench } from 'lucide-react';
+import { Layers, X, Wrench, Check } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
 // 인터페이스 정의
@@ -68,6 +68,9 @@ export const Home = () => {
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // 토스트 알림 상태
+  const [showToast, setShowToast] = useState(false);
 
   useEffect(() => { fetchAllData(); }, []);
 
@@ -132,6 +135,9 @@ export const Home = () => {
       alert('Added to Cart!');
     } else {
       addItemToCanvas(product);
+      // 토스트 알림 표시
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 2000);
     }
   };
 
@@ -176,7 +182,6 @@ export const Home = () => {
        await new Promise(resolve => setTimeout(resolve, 300));
     }
 
-    // ★ 현재 높이 가져오기 (없으면 기본 700)
     const currentHeight = canvasBuilderRef.current?.getHeight() || 700;
     
     const dataUrl = await captureCanvasSnapshot();
@@ -188,7 +193,6 @@ export const Home = () => {
       price: totalPrice, 
       image: dataUrl || '', 
       items: canvasItems,
-      // ★ 높이 정보 저장
       canvasHeight: currentHeight
     } as any);
 
@@ -218,7 +222,6 @@ export const Home = () => {
 
     try {
       const snapshotImage = await captureCanvasSnapshot();
-      // ★ 현재 높이 가져오기
       const currentHeight = canvasBuilderRef.current?.getHeight() || 700;
 
       const designData = {
@@ -234,7 +237,6 @@ export const Home = () => {
           rotation: item.rotation,
         })),
         totalPrice: canvasItems.reduce((sum, item) => sum + item.price, 0),
-        // ★ 높이 정보 저장
         canvasHeight: currentHeight
       };
 
@@ -342,9 +344,8 @@ export const Home = () => {
 
       <CategoryTabs activeCategory={selectedCategory || 'all'} onCategoryChange={handleCategoryChange} />
 
-      <div className="max-w-[1300px] mx-auto px-0 py-0 md:px-6 md:py-4">
-        {/* 1300px 기준: 오른쪽 450px 고정, 왼쪽 나머지 */}
-        <div className={`grid gap-6 ${currentSection === 'BUILDER' ? 'grid-cols-1 lg:grid-cols-[1fr_450px]' : 'grid-cols-1'}`}>
+      <div className="max-w-[1300px] mx-auto px-2 py-2 md:px-6 md:py-4">
+        <div className={`grid gap-6 ${currentSection === 'BUILDER' ? 'grid-cols-1 lg:grid-cols-[1fr_35%]' : 'grid-cols-1'}`}>
           
           <div className="border-0 md:border border-white/30 p-0 md:p-6" style={{ backgroundColor: settings?.bg_color || '#000000' }}>
             {selectedProduct ? (
@@ -372,9 +373,7 @@ export const Home = () => {
 
           {currentSection === 'BUILDER' && (
             <>
-            <button onClick={() => setIsMobileCanvasOpen(true)} className="lg:hidden fixed bottom-6 right-6 z-40 w-14 h-14 bg-[#34d399] rounded-full flex items-center justify-center shadow-lg"><Layers className="text-black" size={24} /></button>
-              
-              {/* ★ 핵심 수정: 데스크탑(lg)에서는 무조건 relative + static 적용 */}
+              {/* 드롭존 컨테이너 (그리드 내부) */}
               <div className={`flex flex-col gap-4 ${isMobileCanvasOpen ? 'fixed inset-0 z-50 bg-black p-4 overflow-y-auto safe-area-inset-top lg:static lg:bg-transparent lg:p-0 lg:overflow-visible lg:w-full lg:relative lg:z-auto' : 'hidden lg:flex lg:relative lg:w-full lg:static'}`}>
                 <div className="flex justify-between items-center mb-4 pb-2 border-b border-white/20 lg:hidden">
                   <span className="text-white font-bold text-lg">DROP ZONE</span>
@@ -393,6 +392,32 @@ export const Home = () => {
           )}
         </div>
       </div>
+
+      {/* ★ 모바일 플로팅 버튼: relative 삭제됨! */}
+      {currentSection === 'BUILDER' && (
+        <button 
+          onClick={() => setIsMobileCanvasOpen(true)} 
+          className="lg:hidden fixed bottom-6 right-6 z-50 w-14 h-14 bg-[#34d399] rounded-full flex items-center justify-center shadow-lg"
+        >
+          <Layers className="text-black" size={24} />
+          {/* 뱃지 카운트 */}
+          {canvasItems.length > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border border-black">
+              {canvasItems.length}
+            </span>
+          )}
+        </button>
+      )}
+
+      {/* 토스트 알림 */}
+      {showToast && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50">
+           <div className="bg-black/90 text-white border border-white/20 px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 backdrop-blur-md animate-bounce">
+              <Check size={16} className="text-[#34d399]" />
+              <span className="text-sm font-bold">드롭존에 추가되었습니다</span>
+           </div>
+        </div>
+      )}
     </div>
   );
 };

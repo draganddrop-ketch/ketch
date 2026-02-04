@@ -62,7 +62,8 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
     <header className="w-full flex flex-col sticky top-0 z-50">
       <AnnouncementBar />
       <div className="w-full border-b border-white/30 bg-black">
-        <div className="max-w-[1300px] mx-auto px-6 py-4 flex items-center justify-between">
+        {/* ★ 수정됨: 모바일(기본) px-4 py-2 (50% 축소) / 데스크탑(md) px-6 py-4 (기존 유지) */}
+        <div className="max-w-[1300px] mx-auto px-4 py-2 md:px-6 md:py-4 flex items-center justify-between">
           
           {/* 좌측 영역: 로고 + 메뉴 */}
           <div className="flex items-center">
@@ -104,15 +105,12 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
               )}
             </div>
 
-            {/* 2. SHOP | BUILDER 토글
-               - text-[17px]: 데스크탑(18px)의 약 95% 크기로 설정 (모바일용)
-               - md:text-lg: 데스크탑은 18px 유지
-               - pl-5: 선과 글자 사이 여백을 조금 더 늘림 (기존 pl-3 -> pl-5)
-            */}
-            <div className="flex items-center gap-3 md:gap-4 py-1 border-l border-white/30 ml-6 pl-5 md:pl-6 shrink-0 whitespace-nowrap">
+            {/* 2. SHOP | BUILDER 토글 */}
+            {/* ★ 수정됨: 모바일 간격(gap, ml, pl)을 50% 축소 */}
+            <div className="flex items-center gap-2 md:gap-4 py-1 border-l border-white/30 ml-3 pl-3 md:ml-6 md:pl-6 shrink-0 whitespace-nowrap">
               <button
                 onClick={() => setCurrentSection('SHOP')}
-                className={`text-[17px] md:text-lg font-bold uppercase tracking-wider transition-colors ${
+                className={`text-[15px] md:text-lg font-bold uppercase tracking-wider transition-colors ${
                   currentSection === 'SHOP'
                     ? 'text-cyan-400'
                     : 'text-white/70 hover:text-white'
@@ -120,10 +118,10 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
               >
                 SHOP
               </button>
-              <span className="text-white/30 text-[17px] md:text-lg">|</span>
+              <span className="text-white/30 text-[15px] md:text-lg">|</span>
               <button
                 onClick={() => setCurrentSection('BUILDER')}
-                className={`text-[17px] md:text-lg font-bold uppercase tracking-wider transition-colors ${
+                className={`text-[15px] md:text-lg font-bold uppercase tracking-wider transition-colors ${
                   currentSection === 'BUILDER'
                     ? 'text-cyan-400'
                     : 'text-white/70 hover:text-white'
