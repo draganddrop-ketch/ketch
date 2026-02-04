@@ -1,12 +1,12 @@
 import { useNavigate } from 'react-router-dom';
-import { Plus, ShoppingCart } from 'lucide-react'; // ShoppingCart 아이콘 추가
+import { Plus, ShoppingCart } from 'lucide-react';
 import { KeyringItem } from '../types';
 
 interface ProductCardProps {
   product: KeyringItem;
   onAddToCanvas: (product: KeyringItem) => void;
   onClick?: (product: KeyringItem) => void;
-  mode?: 'SHOP' | 'BUILDER'; // ★ 모드 구분용 추가
+  mode?: 'SHOP' | 'BUILDER';
 }
 
 export const ProductCard = ({ product, onAddToCanvas, onClick, mode = 'BUILDER' }: ProductCardProps) => {
@@ -21,8 +21,8 @@ export const ProductCard = ({ product, onAddToCanvas, onClick, mode = 'BUILDER' 
   };
 
   const handleQuickAction = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onAddToCanvas(product); // Builder모드면 드롭존 추가, Shop모드면 장바구니 추가 함수가 실행됨
+    e.stopPropagation(); // 클릭 시 상세페이지 이동 방지
+    onAddToCanvas(product);
   };
 
   return (
@@ -39,10 +39,10 @@ export const ProductCard = ({ product, onAddToCanvas, onClick, mode = 'BUILDER' 
         e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
       }}
     >
-      {/* ★ 모드에 따라 아이콘 변경 (SHOP: 장바구니, BUILDER: +) */}
+      {/* ★ 수정됨: 모바일(기본)에서는 상시 노출(opacity-100), 데스크탑(lg)에서는 호버 시 노출 */}
       <button
         onClick={handleQuickAction}
-        className="absolute top-2 right-2 z-10 w-8 h-8 text-black rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+        className="absolute top-2 right-2 z-10 w-8 h-8 text-black rounded-full flex items-center justify-center transition-opacity opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
         style={{
           backgroundColor: 'var(--accent-color, #34d399)',
         }}

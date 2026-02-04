@@ -1,11 +1,11 @@
-import { useState, useRef, forwardRef, useImperativeHandle } from 'react';
+import { useState, useRef, forwardRef, useImperativeHandle, useEffect } from 'react';
 import { Trash2, RotateCcw, GripHorizontal, ArrowUp, ArrowDown } from 'lucide-react';
 import { useCanvas } from '../context/CanvasContext';
 
 interface CanvasBuilderProps { onItemsChange?: (items: any[]) => void; initialHeight?: number; }
 export interface CanvasBuilderRef { setCapturing: (capturing: boolean) => void; getHeight: () => number; }
 
-export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({ onItemsChange, initialHeight = 600 }, ref) => {
+export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({ onItemsChange, initialHeight = 650 }, ref) => {
   const { canvasItems, setCanvasItems, clearCanvas, selectedId, selectItem } = useCanvas();
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
   const [localSelectedId, setLocalSelectedId] = useState<string | null>(null);
@@ -14,15 +14,43 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
   const [isCapturing, setIsCapturing] = useState(false);
   const [canvasHeight, setCanvasHeight] = useState(initialHeight);
   const [isResizing, setIsResizing] = useState(false);
+  const [scale, setScale] = useState(1); // ★ 스케일 상태 추가
+
   const resizeStartY = useRef<number>(0);
   const resizeStartHeight = useRef<number>(0);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   useImperativeHandle(ref, () => ({ setCapturing: setIsCapturing, getHeight: () => canvasHeight }));
 
+  // ★ 핵심 수정: 드롭존 크기가 변하면(모바일 모달 열림 등) 즉시 스케일 재계산
+  useEffect(() => {
+    const updateScale = () => {
+      if (canvasRef.current) {
+        const currentWidth = canvasRef.current.clientWidth;
+        // 너비가 0보다 클 때만 계산 (숨겨져 있을 때 0 나누기 방지)
+        if (currentWidth > 0) {
+          setScale(currentWidth / 450);
+        }
+      }
+    };
+
+    // 1. 처음 마운트 될 때 실행
+    updateScale();
+
+    // 2. 크기 변화 감지 (ResizeObserver)
+    const observer = new ResizeObserver(() => {
+      updateScale();
+    });
+
+    if (canvasRef.current) {
+      observer.observe(canvasRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []); // 빈 배열: 컴포넌트 마운트 시 한 번만 설정
+
   const handleSelect = (id: string | null) => { if (selectItem) selectItem(id); setLocalSelectedId(id); };
   
-  // 레이어 순서 변경
   const handleLayerChange = (id: string, direction: 'forward' | 'backward') => {
     const index = canvasItems.findIndex(i => i.canvasId === id);
     if (index === -1) return;
@@ -61,7 +89,43 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
   };
 
   const handleMouseUp = () => setDraggedItemId(null);
-  
+
+  // 모바일 터치 핸들러
+  const handleItemTouchStart = (e: React.TouchEvent, canvasId: string) => {
+    e.stopPropagation();
+    const item = canvasItems.find((i) => i.canvasId === canvasId);
+    if (!item) return;
+    handleSelect(canvasId);
+    setDraggedItemId(canvasId);
+    
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    
+    const touch = e.touches[0];
+    const scaleX = 450 / rect.width;
+    const scaleY = canvasHeight / rect.height;
+    
+    setDragOffset({ 
+      x: (touch.clientX - rect.left) * scaleX - item.x, 
+      y: (touch.clientY - rect.top) * scaleY - item.y 
+    });
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!draggedItemId || !canvasRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const touch = e.touches[0];
+    const scaleX = 450 / rect.width;
+    const scaleY = canvasHeight / rect.height;
+    let x = (touch.clientX - rect.left) * scaleX - dragOffset.x;
+    let y = (touch.clientY - rect.top) * scaleY - dragOffset.y;
+    x = Math.max(-100, Math.min(x, 450 - 100));
+    y = Math.max(-100, Math.min(y, canvasHeight - 100));
+    const updatedItems = canvasItems.map((item) => item.canvasId === draggedItemId ? { ...item, x, y } : item);
+    setCanvasItems(updatedItems);
+    if (onItemsChange) onItemsChange(updatedItems);
+  };
+
   const handleResizeMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     setIsResizing(true);
@@ -87,8 +151,8 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
   const getImageUrl = (item: any) => item.image || item.image_url || '';
 
   return (
-    <div className="flex flex-col w-full h-full bg-zinc-950">
-      <div className="p-4 border-b border-white/20 flex justify-between items-center bg-zinc-900 flex-shrink-0">
+    <div className="flex flex-col w-full bg-zinc-950">
+      <div className="h-12 px-6 border-b border-white/20 flex justify-between items-center bg-zinc-900 flex-shrink-0">
         <span className="text-white font-bold text-sm">DROP ZONE</span>
         {canvasItems.length > 0 && <button onClick={handleResetCanvas}><RotateCcw className="text-white hover:text-red-400" size={16}/></button>}
       </div>
@@ -98,26 +162,40 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
            id="canvas-drop-zone"
            ref={canvasRef}
            className={`absolute inset-0 ${isCapturing ? 'is-capturing' : ''}`}
-           onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onClick={() => handleSelect(null)}
+           onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
+           onTouchMove={handleTouchMove} onTouchEnd={handleMouseUp}
+           onClick={() => handleSelect(null)}
            style={{ backgroundImage: 'linear-gradient(#333 1px, transparent 1px), linear-gradient(90deg, #333 1px, transparent 1px)', backgroundSize: '50px 50px' }}
         >
-           <div style={{ width: '450px', height: `${canvasHeight}px`, transform: `scale(${canvasRef.current ? canvasRef.current.clientWidth / 450 : 1})`, transformOrigin: 'top left' }}>
+           {/* ★ 수정됨: 실시간으로 업데이트되는 scale 상태값 적용 */}
+           <div style={{ width: '450px', height: `${canvasHeight}px`, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
               {canvasItems.length === 0 && <div className="absolute inset-0 flex items-center justify-center text-white/30 pointer-events-none">Drag items here</div>}
               {canvasItems.map((item, index) => (
-                 <div key={item.canvasId} className="absolute w-64 h-64" style={{ left: item.x, top: item.y, zIndex: draggedItemId===item.canvasId ? 1000 : (activeSelectedId === item.canvasId ? 900 : index) }} onClick={e=>{e.stopPropagation(); handleSelect(item.canvasId);}}>
-                    <div className="w-full h-full cursor-move" onMouseDown={e=>handleItemMouseDown(e, item.canvasId)} style={{ transform: `rotate(${item.rotation}deg)` }}>
+                 <div 
+                    key={item.canvasId} 
+                    className="absolute w-64 h-64" 
+                    style={{ 
+                        left: item.x, 
+                        top: item.y, 
+                        zIndex: draggedItemId===item.canvasId ? 1000 : (activeSelectedId === item.canvasId ? 900 : index),
+                        touchAction: 'none'
+                    }} 
+                    onClick={e=>{e.stopPropagation(); handleSelect(item.canvasId);}}
+                 >
+                    <div 
+                        className="w-full h-full cursor-move" 
+                        onMouseDown={e=>handleItemMouseDown(e, item.canvasId)}
+                        onTouchStart={e=>handleItemTouchStart(e, item.canvasId)}
+                        style={{ transform: `rotate(${item.rotation}deg)` }}
+                    >
                        <img src={getImageUrl(item)} className="w-full h-full object-contain pointer-events-none drop-shadow-xl" />
                     </div>
                     
-                    {/* ★ UI 통합: 이미지 위에 컨트롤바 배치 */}
                     {activeSelectedId === item.canvasId && (
-                      <div className="canvas-controls absolute -top-2 left-1/2 -translate-x-1/2 flex flex-col items-center z-50">
-                        <div className="bg-black/90 border border-white/20 rounded-lg p-2 backdrop-blur-sm flex flex-col gap-2 items-center shadow-2xl">
-                          {/* 회전 슬라이더 */}
-                          <input type="range" min="-180" max="180" value={item.rotation} onChange={e=>handleRotationChange(item.canvasId, parseInt(e.target.value))} className="w-32 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-cyan-400" onMouseDown={e=>e.stopPropagation()}/>
-                          
-                          {/* 순서 변경 및 삭제 버튼 한 줄 배치 */}
-                          <div className="flex gap-4 w-full justify-center items-center border-t border-white/10 pt-2">
+                      <div className="canvas-controls absolute top-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 z-50 w-max">
+                        <div className="bg-black/80 border border-white/20 rounded-lg p-2 backdrop-blur-sm flex flex-col gap-2 items-center shadow-2xl">
+                          <input type="range" min="-180" max="180" value={item.rotation} onChange={e=>handleRotationChange(item.canvasId, parseInt(e.target.value))} className="w-32 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-cyan-400" onMouseDown={e=>e.stopPropagation()} onTouchStart={e=>e.stopPropagation()}/>
+                          <div className="flex gap-3 w-full justify-center items-center border-t border-white/10 pt-2 mt-1">
                              <div className="flex gap-1">
                                <button onClick={(e)=>{e.stopPropagation(); handleLayerChange(item.canvasId, 'backward')}} className="text-gray-400 hover:text-white p-1 hover:bg-white/10 rounded" title="Send Backward"><ArrowDown size={14} /></button>
                                <button onClick={(e)=>{e.stopPropagation(); handleLayerChange(item.canvasId, 'forward')}} className="text-gray-400 hover:text-white p-1 hover:bg-white/10 rounded" title="Bring Forward"><ArrowUp size={14} /></button>

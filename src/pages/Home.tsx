@@ -372,21 +372,21 @@ export const Home = () => {
 
           {currentSection === 'BUILDER' && (
             <>
-              <button onClick={() => setIsMobileCanvasOpen(true)} className="lg:hidden fixed bottom-6 right-6 z-40 w-14 h-14 bg-[#34d399] rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
-                <Layers className="text-black" size={24} />
-              </button>
-<div className={`flex flex-col gap-4 ${isMobileCanvasOpen ? 'fixed inset-0 z-50 bg-black p-4 overflow-y-auto safe-area-inset-top lg:static lg:bg-transparent lg:p-0 lg:overflow-visible' : 'hidden lg:flex'}`}>
-                {/* 모바일 헤더는 lg:hidden으로 숨겨지지만 flex gap은 숨겨진 요소 무시하고 정확히 간격 잡음 */}
+            <button onClick={() => setIsMobileCanvasOpen(true)} className="lg:hidden fixed bottom-6 right-6 z-40 w-14 h-14 bg-[#34d399] rounded-full flex items-center justify-center shadow-lg"><Layers className="text-black" size={24} /></button>
+              
+              {/* ★ 핵심 수정: 데스크탑(lg)에서는 무조건 relative + static 적용 */}
+              <div className={`flex flex-col gap-4 ${isMobileCanvasOpen ? 'fixed inset-0 z-50 bg-black p-4 overflow-y-auto safe-area-inset-top lg:static lg:bg-transparent lg:p-0 lg:overflow-visible lg:w-full lg:relative lg:z-auto' : 'hidden lg:flex lg:relative lg:w-full lg:static'}`}>
                 <div className="flex justify-between items-center mb-4 pb-2 border-b border-white/20 lg:hidden">
                   <span className="text-white font-bold text-lg">DROP ZONE</span>
                   <button onClick={() => setIsMobileCanvasOpen(false)} className="text-white hover:text-red-500"><X size={28} /></button>
                 </div>
-                
-                {/* ★ 높이 제한 제거: CanvasBuilder가 알아서 결정 */}
                 <div className="border border-white/30 bg-black w-full" id="canvas-drop-zone">
-                  <CanvasBuilder ref={canvasBuilderRef} onItemsChange={handleCanvasItemsChange} initialHeight={700} />
+                  <CanvasBuilder 
+                    ref={canvasBuilderRef} 
+                    onItemsChange={handleCanvasItemsChange} 
+                    initialHeight={settings?.canvas_height || 650} 
+                  />
                 </div>
-                
                 <OrderSummary items={canvasItems.map(item => ({ id: item.canvasId, name: item.name, price: item.price }))} onAddToCart={handleAddToCart} onCheckout={handleCheckout} onSaveDesign={handleSaveDesign} onShare={handleShare} />
               </div>
             </>
