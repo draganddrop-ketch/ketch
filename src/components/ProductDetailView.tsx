@@ -3,7 +3,7 @@ import { ArrowLeft, ShoppingCart, CreditCard, Plus } from 'lucide-react';
 import { KeyringItem } from '../types';
 import { useCart } from '../context/CartContext';
 import { useCanvas } from '../context/CanvasContext';
-import { useSection } from '../context/SectionContext'; // ★ 모드 확인용
+import { useSection } from '../context/SectionContext';
 
 interface ProductDetailViewProps {
   product: KeyringItem;
@@ -13,7 +13,7 @@ interface ProductDetailViewProps {
 export const ProductDetailView = ({ product, onBack }: ProductDetailViewProps) => {
   const { addToCart } = useCart();
   const { addItemToCanvas } = useCanvas();
-  const { currentSection } = useSection(); // ★ 현재 모드 가져오기
+  const { currentSection } = useSection();
   const [activeImage, setActiveImage] = useState<string>(product.image);
 
   useEffect(() => {
@@ -47,34 +47,35 @@ export const ProductDetailView = ({ product, onBack }: ProductDetailViewProps) =
 
       <div className="space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* 이미지 섹션 */}
+          {/* 이미지 섹션 (수정됨: 잘림 방지) */}
           <div className="space-y-4">
-            <div className="aspect-square bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800">
+            <div className="aspect-square bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800 flex items-center justify-center">
               <img
                 src={activeImage}
                 alt={product.name}
-                className="w-full h-full object-cover"
+                // ✅ 수정됨: cover -> contain
+                className="w-full h-full object-contain"
               />
             </div>
             {product.gallery_images && product.gallery_images.length > 0 && (
               <div className="grid grid-cols-4 gap-2">
                 <button
                   onClick={() => setActiveImage(product.image)}
-                  className={`aspect-square rounded-lg overflow-hidden border ${
+                  className={`aspect-square rounded-lg overflow-hidden border bg-zinc-900 ${
                     activeImage === product.image ? 'border-white' : 'border-zinc-800'
                   }`}
                 >
-                  <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                  <img src={product.image} alt={product.name} className="w-full h-full object-contain" />
                 </button>
                 {product.gallery_images.map((img, index) => (
                   <button
                     key={index}
                     onClick={() => setActiveImage(img)}
-                    className={`aspect-square rounded-lg overflow-hidden border ${
+                    className={`aspect-square rounded-lg overflow-hidden border bg-zinc-900 ${
                       activeImage === img ? 'border-white' : 'border-zinc-800'
                     }`}
                   >
-                    <img src={img} alt={`${product.name} ${index + 1}`} className="w-full h-full object-cover" />
+                    <img src={img} alt={`${product.name} ${index + 1}`} className="w-full h-full object-contain" />
                   </button>
                 ))}
               </div>
@@ -88,6 +89,12 @@ export const ProductDetailView = ({ product, onBack }: ProductDetailViewProps) =
                 <span className="px-2 py-1 bg-zinc-800 rounded text-xs text-gray-400">
                   {product.category}
                 </span>
+                {/* 보조 카테고리 표시 */}
+                {product.sub_category && (
+                  <span className="px-2 py-1 bg-zinc-800 rounded text-xs text-[#34d399]">
+                    {product.sub_category}
+                  </span>
+                )}
                 {product.status === 'soldout' && (
                   <span className="px-2 py-1 bg-red-900/30 text-red-400 rounded text-xs border border-red-900">
                     SOLD OUT
@@ -107,15 +114,16 @@ export const ProductDetailView = ({ product, onBack }: ProductDetailViewProps) =
               </div>
             </div>
 
+            {/* 상세설명: HTML 렌더링 지원 (RichTextEditor 결과물) */}
             <div className="prose prose-invert prose-sm max-w-none border-t border-white/10 pt-4">
-              <p className="text-gray-400 leading-relaxed whitespace-pre-wrap">
-                {product.description || "No description available."}
-              </p>
+              <div 
+                className="text-gray-400 leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: product.description || "No description available." }}
+              />
             </div>
 
             {/* 버튼 그룹 */}
             <div className="space-y-3 pt-4">
-              {/* ★ BUILDER 모드일 때만 드롭존 추가 버튼 표시 ★ */}
               {currentSection === 'BUILDER' && (
                 <button
                   onClick={handleAddToDropZone}

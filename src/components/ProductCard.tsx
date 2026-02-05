@@ -7,65 +7,64 @@ interface ProductCardProps {
   onAddToCanvas: (product: KeyringItem) => void;
   onClick?: (product: KeyringItem) => void;
   mode?: 'SHOP' | 'BUILDER';
+  customStyle?: {
+    bg?: string;
+    text?: string;
+    subText?: string;
+    accent?: string;
+    // ✅ 폰트 사이즈 추가
+    nameSize?: number;
+    catSize?: number;
+    priceSize?: number;
+  };
 }
 
-export const ProductCard = ({ product, onAddToCanvas, onClick, mode = 'BUILDER' }: ProductCardProps) => {
+export const ProductCard = ({ product, onAddToCanvas, onClick, mode = 'BUILDER', customStyle }: ProductCardProps) => {
   const navigate = useNavigate();
+  
+  // 스타일 기본값 설정
+  const bgColor = customStyle?.bg || 'black';
+  const textColor = customStyle?.text || 'white';
+  const subTextColor = customStyle?.subText || '#9ca3af'; 
+  const accentColor = customStyle?.accent || '#34d399';
+  
+  // ✅ 폰트 크기 적용 (기본값 설정)
+  const nameSize = customStyle?.nameSize ? `${customStyle.nameSize}px` : '16px';
+  const catSize = customStyle?.catSize ? `${customStyle.catSize}px` : '12px';
+  const priceSize = customStyle?.priceSize ? `${customStyle.priceSize}px` : '14px';
 
   const handleCardClick = () => {
-    if (onClick) {
-      onClick(product);
-    } else {
-      navigate(`/product/${product.id}`);
-    }
+    if (onClick) onClick(product);
+    else navigate(`/product/${product.id}`);
   };
 
   const handleQuickAction = (e: React.MouseEvent) => {
-    e.stopPropagation(); // 클릭 시 상세페이지 이동 방지
+    e.stopPropagation(); 
     onAddToCanvas(product);
   };
 
   return (
     <div
       onClick={handleCardClick}
-      className="border border-white/30 bg-black transition-all cursor-pointer group relative hover:border-opacity-50"
-      style={{
-        ['--hover-border' as any]: 'var(--accent-color, #34d399)',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = 'var(--accent-color, #34d399)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
-      }}
+      className="border border-white/30 transition-all cursor-pointer group relative hover:border-opacity-50"
+      style={{ backgroundColor: bgColor, borderColor: 'rgba(255,255,255,0.3)' }}
+      onMouseEnter={(e) => e.currentTarget.style.borderColor = accentColor}
+      onMouseLeave={(e) => e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)'}
     >
-      {/* ★ 수정됨: 모바일(기본)에서는 상시 노출(opacity-100), 데스크탑(lg)에서는 호버 시 노출 */}
       <button
         onClick={handleQuickAction}
         className="absolute top-2 right-2 z-10 w-8 h-8 text-black rounded-full flex items-center justify-center transition-opacity opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
-        style={{
-          backgroundColor: 'var(--accent-color, #34d399)',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.filter = 'brightness(1.1)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.filter = 'brightness(1)';
-        }}
-        title={mode === 'SHOP' ? "Add to Cart" : "Add to Canvas"}
+        style={{ backgroundColor: accentColor }}
       >
-        {mode === 'SHOP' ? (
-          <ShoppingCart size={16} strokeWidth={2.5} />
-        ) : (
-          <Plus size={20} strokeWidth={3} />
-        )}
+        {mode === 'SHOP' ? <ShoppingCart size={16} strokeWidth={2.5} /> : <Plus size={20} strokeWidth={3} />}
       </button>
 
       <div className="p-3 pb-2">
-        <div className="text-white font-bold text-base mb-1">
+        {/* ✅ 폰트 크기 적용됨 */}
+        <div className="font-bold mb-1" style={{ color: textColor, fontSize: nameSize }}>
           {product.name}
         </div>
-        <div className="text-xs text-gray-400 uppercase tracking-wider">
+        <div className="uppercase tracking-wider" style={{ color: subTextColor, fontSize: catSize }}>
           {product.sub_category || product.category}
         </div>
       </div>
@@ -75,18 +74,14 @@ export const ProductCard = ({ product, onAddToCanvas, onClick, mode = 'BUILDER' 
           <img
             src={product.image}
             alt={product.name}
-            className={`w-full h-full object-cover group-hover:scale-105 transition-transform ${
-              product.status === 'soldout' ? 'opacity-50' : ''
-            }`}
+            className={`w-full h-full object-contain p-2 group-hover:scale-105 transition-transform ${product.status === 'soldout' ? 'opacity-50' : ''}`}
           />
         ) : (
           <div className="text-white/20 text-sm">NO IMAGE</div>
         )}
         {product.status === 'soldout' && (
           <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-            <div className="bg-red-600 text-white px-6 py-2 font-bold text-sm tracking-wider">
-              SOLD OUT
-            </div>
+            <div className="bg-red-600 text-white px-6 py-2 font-bold text-sm tracking-wider">SOLD OUT</div>
           </div>
         )}
       </div>
@@ -94,15 +89,16 @@ export const ProductCard = ({ product, onAddToCanvas, onClick, mode = 'BUILDER' 
       <div className="p-3 pt-2">
         {product.sale_price && product.sale_price < product.price ? (
           <div className="flex items-center gap-2">
-            <div className="text-xs text-gray-500 line-through">
+            <div className="text-xs line-through" style={{ color: subTextColor }}>
               ₩{product.price.toLocaleString()}
             </div>
-            <div className="font-semibold text-sm" style={{ color: 'var(--accent-color, #34d399)' }}>
+            {/* ✅ 폰트 크기 적용됨 */}
+            <div className="font-semibold" style={{ color: accentColor, fontSize: priceSize }}>
               ₩{product.sale_price.toLocaleString()}
             </div>
           </div>
         ) : (
-          <div className="font-semibold text-sm" style={{ color: 'var(--accent-color, #34d399)' }}>
+          <div className="font-semibold" style={{ color: accentColor, fontSize: priceSize }}>
             ₩{product.price.toLocaleString()}
           </div>
         )}

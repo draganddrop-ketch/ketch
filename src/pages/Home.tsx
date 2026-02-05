@@ -16,13 +16,14 @@ import { useCanvas } from '../context/CanvasContext';
 import { Layers, X, Wrench, Check } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
-// 인터페이스 정의
+// --- 인터페이스 정의 ---
 interface CanvasItem extends KeyringItem {
   canvasId: string;
   x: number;
   y: number;
   rotation: number;
 }
+
 interface Category {
   id: string;
   name: string;
@@ -32,6 +33,7 @@ interface Category {
   included_categories?: string[];
   section: 'SHOP' | 'BUILDER';
 }
+
 interface SiteSettings {
   id: number;
   site_name: string;
@@ -39,16 +41,33 @@ interface SiteSettings {
   primary_color?: string;
   is_maintenance_mode?: boolean;
   canvas_height?: number;
+  
+  // 카테고리 설정
   shop_home_categories?: string[];
   builder_home_categories?: string[];
+  
+  // 배너 이미지
   shop_banner_images?: string[];
   builder_banner_images?: string[];
+  
+  // 배너 옵션
   banner_transition?: string;
   banner_speed?: number;
   shop_banner_transition?: string;
   shop_banner_speed?: number;
   builder_banner_transition?: string;
   builder_banner_speed?: number;
+
+  // 상품 카드 디자인 (Style - 색상)
+  product_card_bg?: string;
+  product_text_color?: string;
+  product_sub_text_color?: string;
+  product_accent_color?: string;
+
+  // 상품 카드 디자인 (Style - 폰트 크기)
+  product_name_size?: number;
+  product_category_size?: number;
+  product_price_size?: number;
 }
 
 export const Home = () => {
@@ -59,18 +78,19 @@ export const Home = () => {
   const { canvasItems, setCanvasItems, addItemToCanvas } = useCanvas();
   const canvasBuilderRef = useRef<CanvasBuilderRef>(null);
 
+  // UI 상태
   const [viewMode, setViewMode] = useState<'HOME' | 'CATEGORY'>('HOME');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<KeyringItem | null>(null);
   const [isMobileCanvasOpen, setIsMobileCanvasOpen] = useState(false);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [products, setProducts] = useState<KeyringItem[]>([]);
-  const [settings, setSettings] = useState<SiteSettings | null>(null);
+  const [showToast, setShowToast] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // 토스트 알림 상태
-  const [showToast, setShowToast] = useState(false);
+  // 데이터 상태
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<KeyringItem[]>([]);
+  const [settings, setSettings] = useState<SiteSettings | null>(null);
 
   useEffect(() => { fetchAllData(); }, []);
 
@@ -88,21 +108,26 @@ export const Home = () => {
     await Promise.all([fetchCategories(), fetchProducts(), fetchSettings()]);
     setLoading(false);
   };
+
   const fetchSettings = async () => {
     const { data } = await supabase.from('site_settings').select('*').eq('id', 1).maybeSingle();
     setSettings(data);
   };
+
   const fetchCategories = async () => {
     const { data } = await supabase.from('categories').select('*').eq('is_hidden', false).order('display_order', { ascending: true });
     setCategories(data || []);
   };
+
   const fetchProducts = async () => {
     const { data } = await supabase.from('products').select('*');
     if (!data) return;
+    
     const formattedProducts: KeyringItem[] = data.map(item => ({
       id: item.id,
       name: item.name,
-      category: item.category,
+      category: item.category, 
+      category_ids: item.category_ids || (item.category ? [item.category] : []),
       menu_category: item.menu_category,
       sub_category: item.sub_category,
       price: item.price,
@@ -113,7 +138,7 @@ export const Home = () => {
       gallery_images: item.gallery_images,
       is_best: item.is_best,
       is_new: item.is_new,
-      category_ids: item.category_ids
+      stock_quantity: item.stock_quantity
     }));
     setProducts(formattedProducts);
   };
@@ -135,7 +160,6 @@ export const Home = () => {
       alert('Added to Cart!');
     } else {
       addItemToCanvas(product);
-      // 토스트 알림 표시
       setShowToast(true);
       setTimeout(() => setShowToast(false), 2000);
     }
@@ -183,7 +207,6 @@ export const Home = () => {
     }
 
     const currentHeight = canvasBuilderRef.current?.getHeight() || 700;
-    
     const dataUrl = await captureCanvasSnapshot();
     const totalPrice = canvasItems.reduce((sum, item) => sum + item.price, 0);
 
@@ -267,54 +290,85 @@ export const Home = () => {
     } catch (error) { console.error(error); alert('Failed to copy link.'); }
   };
 
+  // ✅ 카테고리 필터링 로직 (다중 카테고리 지원)
   const filteredProducts = products.filter(product => {
     if (product.status === 'hidden') return false;
-    if (!selectedCategory) return true;
+    
+    if (!selectedCategory || selectedCategory === 'all') return true;
+
     const activeCat = categories.find(c => c.slug === selectedCategory);
-    if (!activeCat) return true;
+    const productCatIds = product.category_ids || [product.category];
+
     let matchesCategory = false;
-    if (Array.isArray(product.category_ids) && product.category_ids.length > 0) {
-      matchesCategory = product.category_ids.some(id => String(id) === String(activeCat.id));
-    }
-    if (!matchesCategory) {
-      const categoryToCheck = product.menu_category || product.category;
-      switch (activeCat.filter_type) {
-        case 'ALL': matchesCategory = true; break;
-        case 'MIX': matchesCategory = activeCat.included_categories?.includes(categoryToCheck?.toUpperCase()) || false; break;
-        case 'SINGLE': default: matchesCategory = categoryToCheck?.trim().toUpperCase() === activeCat.slug?.trim().toUpperCase(); break;
+
+    if (activeCat) {
+      if (activeCat.filter_type === 'MIX' && activeCat.included_categories) {
+        matchesCategory = activeCat.included_categories.some(mixedSlug => 
+          productCatIds.includes(mixedSlug.toLowerCase())
+        );
+      } else {
+        matchesCategory = productCatIds.includes(selectedCategory);
       }
+    } else {
+      matchesCategory = productCatIds.includes(selectedCategory);
     }
+
     const matchesSearch = searchQuery === '' || product.name.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
+  // ✅ 메인 화면 섹션 렌더링 로직 (설정 전달 추가)
   const renderCategorySections = (selectedIds: string[] | undefined) => {
     if (!selectedIds || selectedIds.length === 0) return null;
+    
     const targetCategories = categories.filter(c => selectedIds.some(savedId => String(savedId) === String(c.id)));
     if (targetCategories.length === 0) return null;
+
     return (
       <>
         {targetCategories.map(category => {
           const categoryProducts = products.filter(product => {
              if (product.status === 'hidden') return false;
-             let matchesCategory = false;
-             if (Array.isArray(product.category_ids) && product.category_ids.length > 0) {
-               if (product.category_ids.some(id => String(id) === String(category.id))) matchesCategory = true;
+             
+             const productCatIds = product.category_ids || [product.category];
+             let matchesCategory = productCatIds.includes(category.slug);
+
+             if (!matchesCategory && category.filter_type === 'MIX' && category.included_categories) {
+               matchesCategory = category.included_categories.some(mixedSlug => 
+                 productCatIds.includes(mixedSlug.toLowerCase())
+               );
              }
-             if (!matchesCategory) {
-               const cCheck = product.menu_category || product.category;
-               if(category.filter_type === 'ALL') matchesCategory = true;
-               else if(category.filter_type === 'MIX') matchesCategory = category.included_categories?.includes(cCheck?.toUpperCase()) || false;
-               else matchesCategory = cCheck?.trim().toUpperCase() === category.slug?.trim().toUpperCase();
+             if (category.filter_type === 'ALL') {
+               matchesCategory = true;
              }
              return matchesCategory;
           });
+
           if (categoryProducts.length === 0) return null;
+
           return (
             <div key={category.id} className="mb-8 px-6 md:px-0">
               <h2 className="text-white font-bold uppercase tracking-wider mb-4 text-lg">{category.name}</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-                {categoryProducts.map(p => <ProductCard key={p.id} product={p} onClick={handleProductClick} onAddToCanvas={handleQuickAdd} mode={currentSection as 'SHOP'|'BUILDER'} />)}
+                {categoryProducts.map(p => (
+                  <ProductCard 
+                    key={p.id} 
+                    product={p} 
+                    onClick={handleProductClick} 
+                    onAddToCanvas={handleQuickAdd} 
+                    mode={currentSection as 'SHOP'|'BUILDER'}
+                    // ✅ 디자인 설정 전달
+                    customStyle={{
+                      bg: settings?.product_card_bg,
+                      text: settings?.product_text_color,
+                      subText: settings?.product_sub_text_color,
+                      accent: settings?.product_accent_color,
+                      nameSize: settings?.product_name_size,
+                      catSize: settings?.product_category_size,
+                      priceSize: settings?.product_price_size
+                    }}
+                  />
+                ))}
               </div>
             </div>
           );
@@ -336,15 +390,22 @@ export const Home = () => {
 
   return (
     <div className="min-h-screen pb-20 md:pb-0" style={{ backgroundColor: settings?.bg_color || '#000000' }}>
-      <Header cartCount={0} onSearchChange={setSearchQuery} onLogoClick={() => {
-        setSelectedProduct(null);
-        if (currentSection === 'SHOP') setSelectedCategory(null);
-        else if (currentSection === 'BUILDER') { setViewMode('HOME'); setSelectedCategory(null); }
-      }} />
+      
+      {/* ✅ 1. Sticky Header */}
+      <div className="sticky top-0 z-50 bg-black/95 backdrop-blur-md border-b border-white/10">
+        <Header cartCount={0} onSearchChange={setSearchQuery} onLogoClick={() => {
+          setSelectedProduct(null);
+          if (currentSection === 'SHOP') setSelectedCategory(null);
+          else if (currentSection === 'BUILDER') { setViewMode('HOME'); setSelectedCategory(null); }
+        }} />
+      </div>
 
-      <CategoryTabs activeCategory={selectedCategory || 'all'} onCategoryChange={handleCategoryChange} />
+      {/* ✅ 2. Sticky Category Tabs (헤더 바로 아래 고정) */}
+      <div className="sticky top-[60px] z-40" style={{ backgroundColor: settings?.bg_color || '#000000' }}>
+        <CategoryTabs activeCategory={selectedCategory || 'all'} onCategoryChange={handleCategoryChange} />
+      </div>
 
-      <div className="max-w-[1300px] mx-auto px-2 py-2 md:px-6 md:py-4">
+      <div className="max-w-[1300px] mx-auto px-2 py-2 md:px-6 md:py-4 relative z-0">
         <div className={`grid gap-6 ${currentSection === 'BUILDER' ? 'grid-cols-1 lg:grid-cols-[1fr_35%]' : 'grid-cols-1'}`}>
           
           <div className="border-0 md:border border-white/30 p-0 md:p-6" style={{ backgroundColor: settings?.bg_color || '#000000' }}>
@@ -352,19 +413,78 @@ export const Home = () => {
               <div className="px-6 md:px-0 py-6 md:py-0"><ProductDetailView product={selectedProduct} onBack={() => setSelectedProduct(null)} /></div>
             ) : (
               <div className="space-y-4">
+                {/* 배너 슬라이더 (설정 적용) */}
                 {currentSection === 'SHOP' && !selectedCategory && settings?.shop_banner_images && (
-                  <div className="mb-3 w-full"><ShopBannerSlider images={settings.shop_banner_images} transition="slide" speed={3000} /></div>
+                  <div className="mb-3 w-full">
+                    <ShopBannerSlider 
+                      images={settings.shop_banner_images} 
+                      transition={settings.shop_banner_transition || 'slide'} 
+                      speed={settings.shop_banner_speed || 3000} 
+                    />
+                  </div>
                 )}
                 {currentSection === 'BUILDER' && viewMode === 'HOME' && settings?.builder_banner_images && (
-                  <div className="mb-3 w-full"><ShopBannerSlider images={settings.builder_banner_images} transition="slide" speed={3000} /></div>
+                  <div className="mb-3 w-full">
+                    <ShopBannerSlider 
+                      images={settings.builder_banner_images} 
+                      transition={settings.builder_banner_transition || 'slide'} 
+                      speed={settings.builder_banner_speed || 3000} 
+                    />
+                  </div>
                 )}
+
+                {/* 상품 목록 (설정 전달) */}
                 {currentSection === 'SHOP' ? (
                   !selectedCategory ? renderCategorySections(settings?.shop_home_categories) : (
-                    <div className="px-6 md:px-0 mt-6"><h2 className="text-white font-bold uppercase tracking-wider mb-6 text-sm">PRODUCT LIST</h2><div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">{filteredProducts.map(p => <ProductCard key={p.id} product={p} onClick={handleProductClick} onAddToCanvas={handleQuickAdd} mode="SHOP" />)}</div></div>
+                    <div className="px-6 md:px-0 mt-6">
+                      <h2 className="text-white font-bold uppercase tracking-wider mb-6 text-sm">PRODUCT LIST</h2>
+                      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {filteredProducts.map(p => (
+                          <ProductCard 
+                            key={p.id} 
+                            product={p} 
+                            onClick={handleProductClick} 
+                            onAddToCanvas={handleQuickAdd} 
+                            mode="SHOP" 
+                            customStyle={{
+                              bg: settings?.product_card_bg,
+                              text: settings?.product_text_color,
+                              subText: settings?.product_sub_text_color,
+                              accent: settings?.product_accent_color,
+                              nameSize: settings?.product_name_size,
+                              catSize: settings?.product_category_size,
+                              priceSize: settings?.product_price_size
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   )
                 ) : (
                   viewMode === 'HOME' ? renderCategorySections(settings?.builder_home_categories) : (
-                    <div className="px-6 md:px-0 mt-6"><h2 className="text-white font-bold uppercase tracking-wider mb-6 text-sm">PRODUCT LIST</h2><div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">{filteredProducts.map(p => <ProductCard key={p.id} product={p} onClick={handleProductClick} onAddToCanvas={handleQuickAdd} mode="BUILDER" />)}</div></div>
+                    <div className="px-6 md:px-0 mt-6">
+                      <h2 className="text-white font-bold uppercase tracking-wider mb-6 text-sm">PRODUCT LIST</h2>
+                      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {filteredProducts.map(p => (
+                          <ProductCard 
+                            key={p.id} 
+                            product={p} 
+                            onClick={handleProductClick} 
+                            onAddToCanvas={handleQuickAdd} 
+                            mode="BUILDER"
+                            customStyle={{
+                              bg: settings?.product_card_bg,
+                              text: settings?.product_text_color,
+                              subText: settings?.product_sub_text_color,
+                              accent: settings?.product_accent_color,
+                              nameSize: settings?.product_name_size,
+                              catSize: settings?.product_category_size,
+                              priceSize: settings?.product_price_size
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   )
                 )}
               </div>
@@ -373,7 +493,7 @@ export const Home = () => {
 
           {currentSection === 'BUILDER' && (
             <>
-              {/* 드롭존 컨테이너 (그리드 내부) */}
+              {/* 드롭존 컨테이너 */}
               <div className={`flex flex-col gap-4 ${isMobileCanvasOpen ? 'fixed inset-0 z-50 bg-black p-4 overflow-y-auto safe-area-inset-top lg:static lg:bg-transparent lg:p-0 lg:overflow-visible lg:w-full lg:relative lg:z-auto' : 'hidden lg:flex lg:relative lg:w-full lg:static'}`}>
                 <div className="flex justify-between items-center mb-4 pb-2 border-b border-white/20 lg:hidden">
                   <span className="text-white font-bold text-lg">DROP ZONE</span>
@@ -393,14 +513,13 @@ export const Home = () => {
         </div>
       </div>
 
-      {/* ★ 모바일 플로팅 버튼: relative 삭제됨! */}
+      {/* 모바일 플로팅 버튼 */}
       {currentSection === 'BUILDER' && (
         <button 
           onClick={() => setIsMobileCanvasOpen(true)} 
           className="lg:hidden fixed bottom-6 right-6 z-50 w-14 h-14 bg-[#34d399] rounded-full flex items-center justify-center shadow-lg"
         >
           <Layers className="text-black" size={24} />
-          {/* 뱃지 카운트 */}
           {canvasItems.length > 0 && (
             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border border-black">
               {canvasItems.length}
