@@ -24,7 +24,7 @@ export const MainPageManager = () => {
   const [builderBannerImages, setBuilderBannerImages] = useState<string[]>([]);
   const [shopBannerImages, setShopBannerImages] = useState<string[]>([]);
   
-  // 배너 옵션
+  // ✅ 배너 옵션
   const [builderBannerTransition, setBuilderBannerTransition] = useState('slide');
   const [builderBannerSpeed, setBuilderBannerSpeed] = useState(3000);
   const [shopBannerTransition, setShopBannerTransition] = useState('slide');
@@ -171,15 +171,15 @@ export const MainPageManager = () => {
   };
 
   return (
-    // ✅ [수정됨] 스크롤 가능하도록 높이 및 overflow 설정 추가 (pb-32로 하단 여백 확보)
-    <div className="h-full overflow-y-auto pb-32 px-1">
-      <div className="mb-6 sticky top-0 bg-white z-10 py-4 border-b">
+    <div>
+      <div className="mb-6">
         <h3 className="text-lg font-semibold text-gray-800">Main Page & Design Manager</h3>
       </div>
 
       {message && <div className={`mb-4 px-4 py-3 rounded-lg ${message.includes('❌') ? 'bg-red-50 text-red-800' : 'bg-green-50 text-green-800'}`}>{message}</div>}
 
       <div className="flex border-b border-gray-200 mb-6 overflow-x-auto">
+        {/* ✅ Global 탭 삭제됨 */}
         {['BUILDER', 'SHOP', 'STYLE'].map((tab) => (
           <button
             key={tab}
@@ -214,6 +214,7 @@ export const MainPageManager = () => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Transition Effect</label>
+              {/* ✅ 다양한 효과 옵션 추가됨 */}
               <select 
                 value={activeTab === 'BUILDER' ? builderBannerTransition : shopBannerTransition} 
                 onChange={(e) => activeTab === 'BUILDER' ? setBuilderBannerTransition(e.target.value) : setShopBannerTransition(e.target.value)} 
@@ -266,21 +267,9 @@ export const MainPageManager = () => {
               <div><label className="block text-sm font-medium mb-1">Price Size</label><input type="number" value={productPriceSize} onChange={(e) => setProductPriceSize(Number(e.target.value))} className="border rounded px-3 py-2 w-full" /></div>
             </div>
           </div>
-          
-           {/* Preview Section */}
-           <div className="p-6 bg-gray-100 rounded-xl">
-            <p className="text-sm text-gray-500 mb-4 font-bold uppercase">Preview</p>
-            <div className="w-48 p-3 rounded border border-white/20" style={{ backgroundColor: productCardBg }}>
-              <div className="font-bold mb-1" style={{ color: productTextColor, fontSize: `${productNameSize}px` }}>Sample Product</div>
-              <div className="uppercase tracking-wider mb-2" style={{ color: productSubTextColor, fontSize: `${productCategorySize}px` }}>CATEGORY</div>
-              <div className="aspect-square bg-zinc-900 rounded mb-2 flex items-center justify-center text-gray-600 text-xs">IMAGE</div>
-              <div className="font-semibold" style={{ color: productAccentColor, fontSize: `${productPriceSize}px` }}>₩15,000</div>
-            </div>
-          </div>
-
           <button onClick={() => handleSave('STYLE')} disabled={uploading} className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700">{uploading ? 'Saving...' : 'Save Design Settings'}</button>
         </div>
       )}
     </div>
   );
-};
+}; 
