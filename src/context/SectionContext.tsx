@@ -10,7 +10,8 @@ interface SectionContextType {
 const SectionContext = createContext<SectionContextType | undefined>(undefined);
 
 export const SectionProvider = ({ children }: { children: ReactNode }) => {
-  const [currentSection, setCurrentSection] = useState<Section>('BUILDER');
+  // 기본값을 'SHOP'으로 설정 (원하시면 'BUILDER'로 변경 가능)
+  const [currentSection, setCurrentSection] = useState<Section>('SHOP');
 
   return (
     <SectionContext.Provider

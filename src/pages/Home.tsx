@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom'; // ✅ URL 파라미터 훅 추가
 import { Header } from '../components/Header';
 import { CategoryTabs } from '../components/CategoryTabs';
 import { ProductCard } from '../components/ProductCard';
@@ -70,8 +70,22 @@ interface SiteSettings {
   product_price_size?: number;
 }
 
+// ✅ [추가됨] Data URI(base64 문자열)를 Blob(파일 객체)으로 변환하는 헬퍼 함수
+const dataURItoBlob = (dataURI: string) => {
+  const byteString = atob(dataURI.split(',')[1]);
+  const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+  const ab = new ArrayBuffer(byteString.length);
+  const ia = new Uint8Array(ab);
+  for (let i = 0; i < byteString.length; i++) {
+    ia[i] = byteString.charCodeAt(i);
+  }
+  return new Blob([ab], { type: mimeString });
+};
+
 export const Home = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams(); // ✅ URL 쿼리 파라미터 읽기
+  
   const { addToCart } = useCart();
   const { user } = useAuth();
   const { currentSection } = useSection();
@@ -93,6 +107,14 @@ export const Home = () => {
   const [settings, setSettings] = useState<SiteSettings | null>(null);
 
   useEffect(() => { fetchAllData(); }, []);
+
+  // ✅ URL에 검색어가 있으면 상태 업데이트 (헤더 검색 기능 연동)
+  useEffect(() => {
+    const query = searchParams.get('search');
+    if (query !== null) {
+      setSearchQuery(query);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     setSelectedProduct(null);
@@ -281,16 +303,56 @@ export const Home = () => {
     }
   };
 
-  const handleShare = async () => {
-    if (canvasItems.length === 0) { alert('Please add items!'); return; }
+  // ✅ [수정됨] 캔버스 이미지를 SNS로 공유하는 기능 (Web Share API)
+  const handleShareImage = async () => {
+    if (canvasItems.length === 0) {
+      alert('캔버스에 아이템이 없습니다!');
+      return;
+    }
+    
+    // 로딩 표시 대신 간단히 알림 (필요시 커스텀 로딩 추가 가능)
+    // setLoading(true); 
+
     try {
-      const currentUrl = window.location.href;
-      await navigator.clipboard.writeText(currentUrl);
-      alert('Link copied to clipboard!');
-    } catch (error) { console.error(error); alert('Failed to copy link.'); }
+      // 1. 캔버스 캡처
+      const dataUrl = await captureCanvasSnapshot();
+      if (!dataUrl) throw new Error('이미지 캡처 실패');
+
+      // 2. DataURL을 파일(Blob)로 변환
+      const blob = dataURItoBlob(dataUrl);
+      const file = new File([blob], 'my-design.png', { type: 'image/png' });
+
+      // 3. Web Share API 지원 여부 확인 및 실행
+      if (navigator.share && navigator.canShare({ files: [file] })) {
+        // 모바일 등 공유 API를 지원하는 경우 -> 네이티브 공유 시트 열기
+        await navigator.share({
+          title: '나만의 키링 디자인',
+          text: '내가 만든 멋진 키링 디자인을 확인해보세요!',
+          files: [file],
+        });
+      } else {
+        // 4. (PC 등) 공유 API를 지원하지 않는 경우 -> 이미지 다운로드로 대체
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = `design-${Date.now()}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        alert('이미지가 다운로드되었습니다. 인스타그램/SNS 앱을 열어 공유해주세요!');
+      }
+
+    } catch (error: any) {
+      console.error('공유 실패:', error);
+      // 사용자가 공유 창을 닫은 경우는 에러로 처리하지 않음
+      if (error.name !== 'AbortError') {
+        alert('이미지 공유에 실패했습니다.');
+      }
+    } finally {
+      // setLoading(false);
+    }
   };
 
-  // ✅ 카테고리 필터링 로직 (다중 카테고리 지원)
+  // ✅ 카테고리 필터링 로직 (다중 카테고리 지원 + 검색어 연동)
   const filteredProducts = products.filter(product => {
     if (product.status === 'hidden') return false;
     
@@ -357,7 +419,6 @@ export const Home = () => {
                     onClick={handleProductClick} 
                     onAddToCanvas={handleQuickAdd} 
                     mode={currentSection as 'SHOP'|'BUILDER'}
-                    // ✅ 디자인 설정 전달
                     customStyle={{
                       bg: settings?.product_card_bg,
                       text: settings?.product_text_color,
@@ -391,13 +452,17 @@ export const Home = () => {
   return (
     <div className="min-h-screen pb-20 md:pb-0" style={{ backgroundColor: settings?.bg_color || '#000000' }}>
       
-      {/* ✅ 1. Sticky Header */}
+      {/* ✅ 1. Sticky Header (검색 기능 연동됨) */}
       <div className="sticky top-0 z-50 bg-black/95 backdrop-blur-md border-b border-white/10">
-        <Header cartCount={0} onSearchChange={setSearchQuery} onLogoClick={() => {
-          setSelectedProduct(null);
-          if (currentSection === 'SHOP') setSelectedCategory(null);
-          else if (currentSection === 'BUILDER') { setViewMode('HOME'); setSelectedCategory(null); }
-        }} />
+        <Header 
+          cartCount={0} 
+          onSearchChange={setSearchQuery} // 여기서 검색어 상태를 직접 받음
+          onLogoClick={() => {
+            setSelectedProduct(null);
+            if (currentSection === 'SHOP') setSelectedCategory(null);
+            else if (currentSection === 'BUILDER') { setViewMode('HOME'); setSelectedCategory(null); }
+          }} 
+        />
       </div>
 
       {/* ✅ 2. Sticky Category Tabs (헤더 바로 아래 고정) */}
@@ -506,7 +571,13 @@ export const Home = () => {
                     initialHeight={settings?.canvas_height || 650} 
                   />
                 </div>
-                <OrderSummary items={canvasItems.map(item => ({ id: item.canvasId, name: item.name, price: item.price }))} onAddToCart={handleAddToCart} onCheckout={handleCheckout} onSaveDesign={handleSaveDesign} onShare={handleShare} />
+                <OrderSummary 
+                  items={canvasItems.map(item => ({ id: item.canvasId, name: item.name, price: item.price }))} 
+                  onAddToCart={handleAddToCart} 
+                  onCheckout={handleCheckout} 
+                  onSaveDesign={handleSaveDesign} 
+                  onShare={handleShareImage} // ✅ 수정됨: SNS 공유 함수 연결
+                />
               </div>
             </>
           )}

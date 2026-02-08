@@ -2,6 +2,11 @@ import { useState, useRef, forwardRef, useImperativeHandle, useEffect } from 're
 import { Trash2, RotateCcw, GripHorizontal, ArrowUp, ArrowDown } from 'lucide-react';
 import { useCanvas } from '../context/CanvasContext';
 
+// 📏 캔버스 스케일 상수 설정
+// 캔버스의 너비(450px)를 약 10cm라고 가정했을 때: 1cm = 45px
+// 더 넓은 영역을 원하시면 이 값을 줄이고(예: 30), 좁은 영역을 원하시면 키우세요.
+const PIXELS_PER_CM = 45;
+
 interface CanvasBuilderProps { onItemsChange?: (items: any[]) => void; initialHeight?: number; }
 export interface CanvasBuilderRef { setCapturing: (capturing: boolean) => void; getHeight: () => number; }
 
@@ -14,7 +19,7 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
   const [isCapturing, setIsCapturing] = useState(false);
   const [canvasHeight, setCanvasHeight] = useState(initialHeight);
   const [isResizing, setIsResizing] = useState(false);
-  const [scale, setScale] = useState(1); // ★ 스케일 상태 추가
+  const [scale, setScale] = useState(1);
 
   const resizeStartY = useRef<number>(0);
   const resizeStartHeight = useRef<number>(0);
@@ -22,32 +27,20 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
 
   useImperativeHandle(ref, () => ({ setCapturing: setIsCapturing, getHeight: () => canvasHeight }));
 
-  // ★ 핵심 수정: 드롭존 크기가 변하면(모바일 모달 열림 등) 즉시 스케일 재계산
   useEffect(() => {
     const updateScale = () => {
       if (canvasRef.current) {
         const currentWidth = canvasRef.current.clientWidth;
-        // 너비가 0보다 클 때만 계산 (숨겨져 있을 때 0 나누기 방지)
         if (currentWidth > 0) {
           setScale(currentWidth / 450);
         }
       }
     };
-
-    // 1. 처음 마운트 될 때 실행
     updateScale();
-
-    // 2. 크기 변화 감지 (ResizeObserver)
-    const observer = new ResizeObserver(() => {
-      updateScale();
-    });
-
-    if (canvasRef.current) {
-      observer.observe(canvasRef.current);
-    }
-
+    const observer = new ResizeObserver(() => { updateScale(); });
+    if (canvasRef.current) observer.observe(canvasRef.current);
     return () => observer.disconnect();
-  }, []); // 빈 배열: 컴포넌트 마운트 시 한 번만 설정
+  }, []);
 
   const handleSelect = (id: string | null) => { if (selectItem) selectItem(id); setLocalSelectedId(id); };
   
@@ -81,8 +74,8 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
     const scaleY = canvasHeight / rect.height;
     let x = (e.clientX - rect.left) * scaleX - dragOffset.x;
     let y = (e.clientY - rect.top) * scaleY - dragOffset.y;
-    x = Math.max(-100, Math.min(x, 450 - 100));
-    y = Math.max(-100, Math.min(y, canvasHeight - 100));
+    // x = Math.max(-100, Math.min(x, 450 - 100)); // (선택사항) 경계 제한
+    // y = Math.max(-100, Math.min(y, canvasHeight - 100));
     const updatedItems = canvasItems.map((item) => item.canvasId === draggedItemId ? { ...item, x, y } : item);
     setCanvasItems(updatedItems);
     if (onItemsChange) onItemsChange(updatedItems);
@@ -90,25 +83,18 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
 
   const handleMouseUp = () => setDraggedItemId(null);
 
-  // 모바일 터치 핸들러
   const handleItemTouchStart = (e: React.TouchEvent, canvasId: string) => {
     e.stopPropagation();
     const item = canvasItems.find((i) => i.canvasId === canvasId);
     if (!item) return;
     handleSelect(canvasId);
     setDraggedItemId(canvasId);
-    
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
-    
     const touch = e.touches[0];
     const scaleX = 450 / rect.width;
     const scaleY = canvasHeight / rect.height;
-    
-    setDragOffset({ 
-      x: (touch.clientX - rect.left) * scaleX - item.x, 
-      y: (touch.clientY - rect.top) * scaleY - item.y 
-    });
+    setDragOffset({ x: (touch.clientX - rect.left) * scaleX - item.x, y: (touch.clientY - rect.top) * scaleY - item.y });
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -119,8 +105,6 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
     const scaleY = canvasHeight / rect.height;
     let x = (touch.clientX - rect.left) * scaleX - dragOffset.x;
     let y = (touch.clientY - rect.top) * scaleY - dragOffset.y;
-    x = Math.max(-100, Math.min(x, 450 - 100));
-    y = Math.max(-100, Math.min(y, canvasHeight - 100));
     const updatedItems = canvasItems.map((item) => item.canvasId === draggedItemId ? { ...item, x, y } : item);
     setCanvasItems(updatedItems);
     if (onItemsChange) onItemsChange(updatedItems);
@@ -150,6 +134,24 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
   const handleResetCanvas = () => { if(confirm('Clear canvas?')) { if(clearCanvas) clearCanvas(); else setCanvasItems([]); handleSelect(null); if(onItemsChange) onItemsChange([]); } };
   const getImageUrl = (item: any) => item.image || item.image_url || '';
 
+  // ✅ [계산 로직] cm 기준 표시 너비(px) 계산
+  const calculateDisplayWidth = (item: any) => {
+    // 1. 실제 cm값과 분석된 픽셀 데이터가 모두 있는 경우
+    if (item.real_width_cm && item.object_px_width && item.image_width) {
+      // 목표 물체 크기(px) = 실제크기(cm) * 기준비율(px/cm)
+      const targetObjectWidthPx = item.real_width_cm * PIXELS_PER_CM;
+      
+      // 이미지 전체 확대 비율 = 목표 물체 픽셀 / 현재 물체 픽셀
+      const scaleFactor = targetObjectWidthPx / item.object_px_width;
+      
+      // 최종 이미지 너비 = 원본 이미지 너비 * 확대 비율
+      return `${item.image_width * scaleFactor}px`;
+    }
+    
+    // 2. 정보가 없으면 기본값 (기존 256px)
+    return '256px'; 
+  };
+
   return (
     <div className="flex flex-col w-full bg-zinc-950">
       <div className="h-12 px-6 border-b border-white/20 flex justify-between items-center bg-zinc-900 flex-shrink-0">
@@ -167,16 +169,18 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
            onClick={() => handleSelect(null)}
            style={{ backgroundImage: 'linear-gradient(#333 1px, transparent 1px), linear-gradient(90deg, #333 1px, transparent 1px)', backgroundSize: '50px 50px' }}
         >
-           {/* ★ 수정됨: 실시간으로 업데이트되는 scale 상태값 적용 */}
            <div style={{ width: '450px', height: `${canvasHeight}px`, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
               {canvasItems.length === 0 && <div className="absolute inset-0 flex items-center justify-center text-white/30 pointer-events-none">Drag items here</div>}
               {canvasItems.map((item, index) => (
                  <div 
                     key={item.canvasId} 
-                    className="absolute w-64 h-64" 
+                    className="absolute flex items-center justify-center" 
                     style={{ 
                         left: item.x, 
                         top: item.y, 
+                        // ✅ style로 너비 동적 할당 (w-64 제거됨)
+                        width: calculateDisplayWidth(item),
+                        height: 'auto',
                         zIndex: draggedItemId===item.canvasId ? 1000 : (activeSelectedId === item.canvasId ? 900 : index),
                         touchAction: 'none'
                     }} 
@@ -188,7 +192,7 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
                         onTouchStart={e=>handleItemTouchStart(e, item.canvasId)}
                         style={{ transform: `rotate(${item.rotation}deg)` }}
                     >
-                       <img src={getImageUrl(item)} className="w-full h-full object-contain pointer-events-none drop-shadow-xl" />
+                       <img src={getImageUrl(item)} className="w-full h-auto object-contain pointer-events-none drop-shadow-xl" />
                     </div>
                     
                     {activeSelectedId === item.canvasId && (

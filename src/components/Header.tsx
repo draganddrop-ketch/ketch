@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom'; // ✅ useLocation 추가
 import { ShoppingCart, Search, User, UserPlus, X, LogOut, UserCircle, Menu } from 'lucide-react';
 import { useSiteSettings } from '../context/SiteSettingsContext';
 import { useAuth } from '../context/AuthContext';
@@ -15,6 +15,7 @@ interface HeaderProps {
 
 export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
   const navigate = useNavigate();
+  const location = useLocation(); // ✅ 현재 경로 확인용 훅
   const { settings } = useSiteSettings();
   const { user, signOut } = useAuth();
   const { cartItems } = useCart();
@@ -36,10 +37,28 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
     }
   };
 
+  // ✅ 섹션 변경 핸들러 (페이지 이동 기능 추가)
+  const handleSectionChange = (section: 'SHOP' | 'BUILDER') => {
+    setCurrentSection(section);
+    // 메인 페이지가 아니라면 메인으로 이동
+    if (location.pathname !== '/') {
+      navigate('/');
+    }
+  };
+
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
     if (onSearchChange) {
       onSearchChange(value);
+    }
+  };
+
+  // ✅ 검색 제출 핸들러 (Enter키 입력 시 동작)
+  const handleSearchSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      // URL 쿼리 파라미터로 검색어 전달하며 메인으로 이동
+      navigate(`/?search=${encodeURIComponent(searchQuery)}`);
+      setShowSearch(false); // 검색 후 검색창 닫기 (선택사항)
     }
   };
 
@@ -62,7 +81,6 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
     <header className="w-full flex flex-col sticky top-0 z-50">
       <AnnouncementBar />
       <div className="w-full border-b border-white/30 bg-black">
-        {/* ★ 수정됨: 모바일(기본) px-4 py-2 (50% 축소) / 데스크탑(md) px-6 py-4 (기존 유지) */}
         <div className="max-w-[1300px] mx-auto px-4 py-2 md:px-6 md:py-4 flex items-center justify-between">
           
           {/* 좌측 영역: 로고 + 메뉴 */}
@@ -83,7 +101,6 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
                       maxWidth: 'none',
                     }}
                   />
-                  {/* 모바일에서만 75% 크기로 줄임 (calc 사용) */}
                   <style>{`
                     .responsive-logo {
                       width: ${logoWidthStr};
@@ -106,10 +123,9 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
             </div>
 
             {/* 2. SHOP | BUILDER 토글 */}
-            {/* ★ 수정됨: 모바일 간격(gap, ml, pl)을 50% 축소 */}
             <div className="flex items-center gap-2 md:gap-4 py-1 border-l border-white/30 ml-3 pl-3 md:ml-6 md:pl-6 shrink-0 whitespace-nowrap">
               <button
-                onClick={() => setCurrentSection('SHOP')}
+                onClick={() => handleSectionChange('SHOP')} // ✅ 변경된 핸들러 사용
                 className={`text-[15px] md:text-lg font-bold uppercase tracking-wider transition-colors ${
                   currentSection === 'SHOP'
                     ? 'text-cyan-400'
@@ -120,7 +136,7 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
               </button>
               <span className="text-white/30 text-[15px] md:text-lg">|</span>
               <button
-                onClick={() => setCurrentSection('BUILDER')}
+                onClick={() => handleSectionChange('BUILDER')} // ✅ 변경된 핸들러 사용
                 className={`text-[15px] md:text-lg font-bold uppercase tracking-wider transition-colors ${
                   currentSection === 'BUILDER'
                     ? 'text-cyan-400'
@@ -184,6 +200,7 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
+                onKeyDown={handleSearchSubmit} // ✅ 엔터키 이벤트 연결
                 placeholder="Search products..."
                 className="w-full bg-black border border-white/30 text-white px-4 py-3 focus:outline-none focus:border-cyan-400 transition-colors"
                 autoFocus

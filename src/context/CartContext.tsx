@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 interface CartItem {
   id: string;
@@ -19,8 +19,23 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider = ({ children }: { children: ReactNode }) => {
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  // ✅ [수정됨] 1. 초기화 시 로컬 스토리지에서 데이터 불러오기 (Lazy Initialization)
+  const [cartItems, setCartItems] = useState<CartItem[]>(() => {
+    try {
+      const savedCart = localStorage.getItem('ketch_cart');
+      return savedCart ? JSON.parse(savedCart) : [];
+    } catch (error) {
+      console.error('장바구니 불러오기 실패:', error);
+      return [];
+    }
+  });
 
+  // ✅ [추가됨] 2. 장바구니(cartItems)가 변경될 때마다 로컬 스토리지에 저장
+  useEffect(() => {
+    localStorage.setItem('ketch_cart', JSON.stringify(cartItems));
+  }, [cartItems]);
+
+  // --- 기존 로직 유지 ---
   const addToCart = (item: CartItem) => {
     setCartItems((prev) => [...prev, item]);
   };
