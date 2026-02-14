@@ -1,10 +1,8 @@
 import { useState, useRef, forwardRef, useImperativeHandle, useEffect } from 'react';
 import { Trash2, RotateCcw, GripHorizontal, ArrowUp, ArrowDown } from 'lucide-react';
 import { useCanvas } from '../context/CanvasContext';
+import { useSiteSettings } from '../context/SiteSettingsContext'; // ✅ 설정 가져오기
 
-// 📏 캔버스 스케일 상수 설정
-// 캔버스의 너비(450px)를 약 10cm라고 가정했을 때: 1cm = 45px
-// 더 넓은 영역을 원하시면 이 값을 줄이고(예: 30), 좁은 영역을 원하시면 키우세요.
 const PIXELS_PER_CM = 45;
 
 interface CanvasBuilderProps { onItemsChange?: (items: any[]) => void; initialHeight?: number; }
@@ -12,6 +10,7 @@ export interface CanvasBuilderRef { setCapturing: (capturing: boolean) => void; 
 
 export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({ onItemsChange, initialHeight = 650 }, ref) => {
   const { canvasItems, setCanvasItems, clearCanvas, selectedId, selectItem } = useCanvas();
+  const { settings, getBorderStyle } = useSiteSettings(); // ✅ 설정 및 테두리 함수 가져오기
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
   const [localSelectedId, setLocalSelectedId] = useState<string | null>(null);
   const activeSelectedId = selectedId ?? localSelectedId;
@@ -25,17 +24,33 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
   const resizeStartHeight = useRef<number>(0);
   const canvasRef = useRef<HTMLDivElement>(null);
 
+  // ✅ 전역 스타일 변수
+  const globalBg = settings?.global_bg_color || '#000000';
+  const globalText = settings?.global_text_color || '#FFFFFF';
+  const borderStyle = getBorderStyle();
+
+  // 캔버스 내부 배경 (개별 설정 유지)
+  const canvasBgColor = settings?.canvas_bg_color || '#FFFFFF';
+  const canvasBgImage = settings?.canvas_bg_image;
+  
+  const backgroundStyle = canvasBgImage 
+    ? { 
+        backgroundColor: canvasBgColor,
+        backgroundImage: `url(${canvasBgImage})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }
+    : { 
+        backgroundColor: canvasBgColor,
+        backgroundImage: 'linear-gradient(#e5e7eb 1px, transparent 1px), linear-gradient(90deg, #e5e7eb 1px, transparent 1px)', 
+        backgroundSize: '50px 50px' 
+      };
+
   useImperativeHandle(ref, () => ({ setCapturing: setIsCapturing, getHeight: () => canvasHeight }));
 
   useEffect(() => {
-    const updateScale = () => {
-      if (canvasRef.current) {
-        const currentWidth = canvasRef.current.clientWidth;
-        if (currentWidth > 0) {
-          setScale(currentWidth / 450);
-        }
-      }
-    };
+    const updateScale = () => { if (canvasRef.current) { const currentWidth = canvasRef.current.clientWidth; if (currentWidth > 0) setScale(currentWidth / 450); } };
     updateScale();
     const observer = new ResizeObserver(() => { updateScale(); });
     if (canvasRef.current) observer.observe(canvasRef.current);
@@ -74,8 +89,6 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
     const scaleY = canvasHeight / rect.height;
     let x = (e.clientX - rect.left) * scaleX - dragOffset.x;
     let y = (e.clientY - rect.top) * scaleY - dragOffset.y;
-    // x = Math.max(-100, Math.min(x, 450 - 100)); // (선택사항) 경계 제한
-    // y = Math.max(-100, Math.min(y, canvasHeight - 100));
     const updatedItems = canvasItems.map((item) => item.canvasId === draggedItemId ? { ...item, x, y } : item);
     setCanvasItems(updatedItems);
     if (onItemsChange) onItemsChange(updatedItems);
@@ -134,31 +147,31 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
   const handleResetCanvas = () => { if(confirm('Clear canvas?')) { if(clearCanvas) clearCanvas(); else setCanvasItems([]); handleSelect(null); if(onItemsChange) onItemsChange([]); } };
   const getImageUrl = (item: any) => item.image || item.image_url || '';
 
-  // ✅ [계산 로직] cm 기준 표시 너비(px) 계산
   const calculateDisplayWidth = (item: any) => {
-    // 1. 실제 cm값과 분석된 픽셀 데이터가 모두 있는 경우
     if (item.real_width_cm && item.object_px_width && item.image_width) {
-      // 목표 물체 크기(px) = 실제크기(cm) * 기준비율(px/cm)
       const targetObjectWidthPx = item.real_width_cm * PIXELS_PER_CM;
-      
-      // 이미지 전체 확대 비율 = 목표 물체 픽셀 / 현재 물체 픽셀
       const scaleFactor = targetObjectWidthPx / item.object_px_width;
-      
-      // 최종 이미지 너비 = 원본 이미지 너비 * 확대 비율
       return `${item.image_width * scaleFactor}px`;
     }
-    
-    // 2. 정보가 없으면 기본값 (기존 256px)
     return '256px'; 
   };
 
   return (
-    <div className="flex flex-col w-full bg-zinc-950">
-      <div className="h-12 px-6 border-b border-white/20 flex justify-between items-center bg-zinc-900 flex-shrink-0">
-        <span className="text-white font-bold text-sm">DROP ZONE</span>
-        {canvasItems.length > 0 && <button onClick={handleResetCanvas}><RotateCcw className="text-white hover:text-red-400" size={16}/></button>}
+    // ✅ 전체 배경: 전역 설정 연동
+    <div className="flex flex-col w-full" style={{ backgroundColor: globalBg }}> 
+      {/* ✅ 헤더: 전역 설정 연동 */}
+      <div 
+        className="h-12 px-6 border-b flex justify-between items-center flex-shrink-0" 
+        style={{ 
+          backgroundColor: globalBg, 
+          borderColor: settings?.layout_border_color || 'rgba(255,255,255,0.1)' 
+        }}
+      >
+        <span className="font-bold text-sm" style={{ color: globalText }}>DROP ZONE</span>
+        {canvasItems.length > 0 && <button onClick={handleResetCanvas}><RotateCcw size={16} style={{ color: globalText }} className="hover:text-red-400"/></button>}
       </div>
       
+      {/* 캔버스 영역 */}
       <div className="w-full relative overflow-hidden" style={{ height: `${canvasHeight}px`, transition: isResizing ? 'none' : 'height 0.2s' }}>
         <div 
            id="canvas-drop-zone"
@@ -167,10 +180,10 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
            onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
            onTouchMove={handleTouchMove} onTouchEnd={handleMouseUp}
            onClick={() => handleSelect(null)}
-           style={{ backgroundImage: 'linear-gradient(#333 1px, transparent 1px), linear-gradient(90deg, #333 1px, transparent 1px)', backgroundSize: '50px 50px' }}
+           style={backgroundStyle} // 캔버스 내부 배경은 별도 설정 유지
         >
            <div style={{ width: '450px', height: `${canvasHeight}px`, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
-              {canvasItems.length === 0 && <div className="absolute inset-0 flex items-center justify-center text-white/30 pointer-events-none">Drag items here</div>}
+              {canvasItems.length === 0 && <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ color: '#9ca3af' }}>Drag items here</div>}
               {canvasItems.map((item, index) => (
                  <div 
                     key={item.canvasId} 
@@ -178,7 +191,6 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
                     style={{ 
                         left: item.x, 
                         top: item.y, 
-                        // ✅ style로 너비 동적 할당 (w-64 제거됨)
                         width: calculateDisplayWidth(item),
                         height: 'auto',
                         zIndex: draggedItemId===item.canvasId ? 1000 : (activeSelectedId === item.canvasId ? 900 : index),
@@ -194,7 +206,6 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
                     >
                        <img src={getImageUrl(item)} className="w-full h-auto object-contain pointer-events-none drop-shadow-xl" />
                     </div>
-                    
                     {activeSelectedId === item.canvasId && (
                       <div className="canvas-controls absolute top-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 z-50 w-max">
                         <div className="bg-black/80 border border-white/20 rounded-lg p-2 backdrop-blur-sm flex flex-col gap-2 items-center shadow-2xl">
@@ -215,7 +226,8 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
            </div>
         </div>
       </div>
-      <div onMouseDown={handleResizeMouseDown} className={`h-4 bg-zinc-800 hover:bg-cyan-400/20 cursor-row-resize flex items-center justify-center border-t border-white/10 flex-shrink-0 ${isResizing ? 'bg-cyan-400/40' : ''}`}><GripHorizontal size={16} className="text-white/40" /></div>
+      {/* 리사이즈 핸들: 배경색을 캔버스 내부 배경과 맞추거나 전역 배경 사용 */}
+      <div onMouseDown={handleResizeMouseDown} className={`h-4 hover:bg-cyan-400/20 cursor-row-resize flex items-center justify-center border-t flex-shrink-0 ${isResizing ? 'bg-cyan-400/40' : ''}`} style={{ backgroundColor: '#f3f4f6', borderColor: '#e5e7eb' }}><GripHorizontal size={16} className="text-gray-400" /></div>
     </div>
   );
 });
