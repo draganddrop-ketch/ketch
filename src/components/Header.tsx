@@ -81,28 +81,7 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
           </div>
 
           <div className="flex items-center shrink-0 z-20">
-            <nav className="hidden md:flex items-center gap-6">
-              {user ? (
-                <>
-                  <button onClick={() => navigate('/profile')} className="flex items-center gap-2 text-sm uppercase tracking-wide hover:opacity-80" style={{ color: navColor }}><UserCircle size={18} /> <span>MY PAGE</span></button>
-                  <button onClick={async () => { await signOut(); navigate('/'); }} className="flex items-center gap-2 text-sm uppercase tracking-wide hover:opacity-80" style={{ color: navColor }}><LogOut size={18} /> <span>LOGOUT</span></button>
-                </>
-              ) : (
-                <>
-                  <button onClick={() => navigate('/login')} className="flex items-center gap-2 text-sm uppercase tracking-wide hover:opacity-80" style={{ color: navColor }}><User size={18} /> <span>LOGIN</span></button>
-                  <button onClick={() => navigate('/signup')} className="flex items-center gap-2 text-sm uppercase tracking-wide hover:opacity-80" style={{ color: navColor }}><UserPlus size={18} /> <span>SIGN-UP</span></button>
-                </>
-              )}
-              <button onClick={() => navigate('/cart')} className="flex items-center gap-2 text-sm uppercase tracking-wide relative hover:opacity-80" style={{ color: navColor }}>
-                <ShoppingCart size={18} /> <span>CART</span>
-                {cartCount > 0 && <span className="absolute -top-2 -right-2 text-black text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center" style={{ backgroundColor: accentColor }}>{cartCount}</span>}
-              </button>
-              <button onClick={handleSearchToggle} className="flex items-center gap-2 text-sm uppercase tracking-wide hover:opacity-80" style={{ color: navColor }}>
-                {showSearch ? <X size={18} /> : <Search size={18} />} <span>{showSearch ? 'CLOSE' : 'SEARCH'}</span>
-              </button>
-            </nav>
-
-            <div className="flex items-center gap-4 md:hidden">
+            <div className="flex items-center gap-4">
                <button onClick={handleSearchToggle} style={{ color: navColor }}><Search size={22} /></button>
                <button onClick={() => setIsMobileMenuOpen(true)} style={{ color: navColor }}><Menu size={24} /></button>
             </div>
@@ -119,24 +98,31 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
       </div>
 
       {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-[60] backdrop-blur-md animate-fade-in md:hidden flex flex-col" style={{ backgroundColor: globalBg }}>
-          <div className="flex justify-end p-6">
-            <button onClick={() => setIsMobileMenuOpen(false)} style={{ color: navColor }}><X size={32} /></button>
-          </div>
-          <div className="flex flex-col items-center gap-8 mt-4 px-6">
-            {user ? (
-              <>
-                <button onClick={() => handleMobileLinkClick('/profile')} className="text-xl font-bold flex items-center gap-2" style={{ color: navColor }}><UserCircle size={24} /> MY PAGE</button>
-                <button onClick={() => handleMobileLinkClick('/cart')} className="text-xl font-bold flex items-center gap-2" style={{ color: navColor }}><ShoppingCart size={24} /> CART ({cartCount})</button>
-                <button onClick={async () => { await signOut(); setIsMobileMenuOpen(false); navigate('/'); }} className="text-xl font-bold flex items-center gap-2 mt-4" style={{ color: navColor, opacity: 0.7 }}><LogOut size={24} /> LOGOUT</button>
-              </>
-            ) : (
-              <>
-                <button onClick={() => handleMobileLinkClick('/login')} className="text-xl font-bold flex items-center gap-2" style={{ color: navColor }}><User size={24} /> LOGIN</button>
-                <button onClick={() => handleMobileLinkClick('/signup')} className="text-xl font-bold flex items-center gap-2" style={{ color: navColor }}><UserPlus size={24} /> SIGN UP</button>
-                <button onClick={() => handleMobileLinkClick('/cart')} className="text-xl font-bold flex items-center gap-2 mt-4" style={{ color: navColor }}><ShoppingCart size={24} /> CART ({cartCount})</button>
-              </>
-            )}
+        <div className="fixed inset-0 z-[60] flex animate-fade-in">
+          <div className="flex-1 bg-black/40" onClick={() => setIsMobileMenuOpen(false)} />
+          <div className="h-full w-[50vw] md:w-[30vw] bg-black text-white shadow-2xl flex flex-col">
+            <div className="flex justify-end p-5 border-b border-white/10">
+              <button onClick={() => setIsMobileMenuOpen(false)} className="text-white"><X size={26} /></button>
+            </div>
+            <div className="flex flex-col gap-6 p-6">
+              {user ? (
+                <>
+                  <button onClick={() => handleMobileLinkClick('/profile')} className="text-lg font-bold flex items-center gap-2"><UserCircle size={20} /> MY PAGE</button>
+                  <button onClick={async () => { await signOut(); setIsMobileMenuOpen(false); navigate('/'); }} className="text-lg font-bold flex items-center gap-2"><LogOut size={20} /> LOGOUT</button>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => handleMobileLinkClick('/login')} className="text-lg font-bold flex items-center gap-2"><User size={20} /> LOGIN</button>
+                  <button onClick={() => handleMobileLinkClick('/signup')} className="text-lg font-bold flex items-center gap-2"><UserPlus size={20} /> SIGN UP</button>
+                </>
+              )}
+              <button onClick={() => handleMobileLinkClick('/cart')} className="text-lg font-bold flex items-center gap-2">
+                <ShoppingCart size={20} /> CART {cartCount > 0 ? `(${cartCount})` : ''}
+              </button>
+              <button onClick={() => { handleSearchToggle(); setIsMobileMenuOpen(false); }} className="text-lg font-bold flex items-center gap-2">
+                <Search size={20} /> {showSearch ? 'CLOSE SEARCH' : 'SEARCH'}
+              </button>
+            </div>
           </div>
         </div>
       )}
