@@ -19,8 +19,9 @@ export const ProductDetail = () => {
   const [activeImage, setActiveImage] = useState<string>('');
 
   const bgColor = settings?.global_bg_color || '#000000';
-  const textColor = settings?.global_text_color || '#FFFFFF';
-  const nameColor = settings?.product_text_color || '#FFFFFF'; 
+  const textColor = settings?.global_text_color || '#000000';
+  const nameColor = textColor;
+  const accentColor = settings?.product_accent_color || settings?.accent_color || '#34d399';
   const borderStyle = getBorderStyle();
 
   useEffect(() => { fetchProduct(); }, [id]);
@@ -70,16 +71,16 @@ export const ProductDetail = () => {
               </div>
               <h1 className="text-4xl font-bold mb-4 font-mono" style={{ color: nameColor }}>{product.name}</h1>
               <div className="flex items-baseline gap-4">
-                <span className="text-2xl font-bold text-[#34d399]">₩{(product.sale_price || product.price).toLocaleString()}</span>
+                <span className="text-2xl font-bold" style={{ color: accentColor }}>₩{(product.sale_price || product.price).toLocaleString()}</span>
                 {product.sale_price && <span className="text-lg line-through opacity-50">₩{product.price.toLocaleString()}</span>}
               </div>
             </div>
-            <div className="prose prose-invert max-w-none"><p className="leading-relaxed whitespace-pre-wrap" style={{ color: textColor, opacity: 0.8 }}>{product.description}</p></div>
+            <div className="prose max-w-none"><p className="leading-relaxed whitespace-pre-wrap" style={{ color: textColor }}>{product.description}</p></div>
             <div className="space-y-3 pt-6 border-t" style={{ borderColor: borderStyle.borderColor }}>
               <button onClick={handleAddToDropZone} disabled={product.status === 'soldout'} className="w-full py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold flex items-center justify-center gap-2 border border-zinc-700"><Plus size={20} /> ADD TO DROP ZONE</button>
               <div className="grid grid-cols-2 gap-3">
                 <button onClick={handleAddToCart} disabled={product.status === 'soldout'} className="py-4 bg-transparent border hover:bg-white/5 rounded-lg font-bold flex items-center justify-center gap-2" style={borderStyle}><ShoppingCart size={20} /> ADD TO CART</button>
-                <button onClick={handleOrder} disabled={product.status === 'soldout'} className="py-4 bg-[#34d399] hover:bg-[#2ebb88] text-black rounded-lg font-bold flex items-center justify-center gap-2"><CreditCard size={20} /> ORDER</button>
+                <button onClick={handleOrder} disabled={product.status === 'soldout'} className="py-4 text-black rounded-lg font-bold flex items-center justify-center gap-2 hover:brightness-95 transition" style={{ backgroundColor: accentColor }}><CreditCard size={20} /> ORDER</button>
               </div>
             </div>
           </div>

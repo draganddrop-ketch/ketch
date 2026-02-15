@@ -15,7 +15,7 @@ export const CategoryTabs = ({ activeCategory, onCategoryChange }: CategoryTabsP
   // ✅ 전역 스타일 연동
   const globalBg = settings?.global_bg_color || '#000000';
   const navColor = settings?.nav_text_color || '#FFFFFF'; // 메뉴 텍스트 컬러
-  const accentColor = settings?.accent_color || '#34d399';
+  const accentColor = settings?.product_accent_color || settings?.accent_color || '#34d399';
 
   useEffect(() => { fetchCategories(); }, []);
 
@@ -42,8 +42,7 @@ export const CategoryTabs = ({ activeCategory, onCategoryChange }: CategoryTabsP
                 onClick={() => onCategoryChange(category.slug)}
                 className="py-4 text-sm font-medium uppercase tracking-widest whitespace-nowrap transition-colors relative"
                 style={{ 
-                  color: isActive ? accentColor : navColor, // ✅ 설정된 폰트 컬러 적용
-                  opacity: isActive ? 1 : 0.7 
+                  color: isActive ? accentColor : navColor // ✅ 설정된 폰트 컬러 적용
                 }}
               >
                 {category.name}

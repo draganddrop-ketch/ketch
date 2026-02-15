@@ -4,6 +4,7 @@ import { KeyringItem } from '../types';
 import { useCart } from '../context/CartContext';
 import { useCanvas } from '../context/CanvasContext';
 import { useSection } from '../context/SectionContext';
+import { useSiteSettings } from '../context/SiteSettingsContext';
 
 interface ProductDetailViewProps {
   product: KeyringItem;
@@ -14,7 +15,11 @@ export const ProductDetailView = ({ product, onBack }: ProductDetailViewProps) =
   const { addToCart } = useCart();
   const { addItemToCanvas } = useCanvas();
   const { currentSection } = useSection();
+  const { settings, getBorderStyle } = useSiteSettings();
   const [activeImage, setActiveImage] = useState<string>(product.image);
+  const textColor = settings?.global_text_color || '#000000';
+  const accentColor = settings?.product_accent_color || settings?.accent_color || '#34d399';
+  const borderStyle = getBorderStyle();
 
   useEffect(() => {
     setActiveImage(product.image);
@@ -36,10 +41,10 @@ export const ProductDetailView = ({ product, onBack }: ProductDetailViewProps) =
   };
 
   return (
-    <div className="w-full text-white animate-fade-in">
+    <div className="w-full animate-fade-in" style={{ color: textColor }}>
       <button
         onClick={onBack}
-        className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
+        className="flex items-center gap-2 mb-6 transition-opacity hover:opacity-80"
       >
         <ArrowLeft size={20} />
         BACK TO LIST
@@ -86,12 +91,12 @@ export const ProductDetailView = ({ product, onBack }: ProductDetailViewProps) =
           <div className="space-y-6">
             <div>
               <div className="flex items-center gap-3 mb-2">
-                <span className="px-2 py-1 bg-zinc-800 rounded text-xs text-gray-400">
+                <span className="px-2 py-1 bg-zinc-800 rounded text-xs text-gray-600">
                   {product.category}
                 </span>
                 {/* 보조 카테고리 표시 */}
                 {product.sub_category && (
-                  <span className="px-2 py-1 bg-zinc-800 rounded text-xs text-[#34d399]">
+                  <span className="px-2 py-1 bg-zinc-800 rounded text-xs" style={{ color: accentColor }}>
                     {product.sub_category}
                   </span>
                 )}
@@ -103,7 +108,7 @@ export const ProductDetailView = ({ product, onBack }: ProductDetailViewProps) =
               </div>
               <h1 className="text-3xl font-bold mb-2 font-mono">{product.name}</h1>
               <div className="flex items-baseline gap-3">
-                <span className="text-2xl font-bold text-[#34d399]">
+                <span className="text-2xl font-bold" style={{ color: accentColor }}>
                   ₩{(product.sale_price || product.price).toLocaleString()}
                 </span>
                 {product.sale_price && (
@@ -115,9 +120,10 @@ export const ProductDetailView = ({ product, onBack }: ProductDetailViewProps) =
             </div>
 
             {/* 상세설명: HTML 렌더링 지원 (RichTextEditor 결과물) */}
-            <div className="prose prose-invert prose-sm max-w-none border-t border-white/10 pt-4">
+            <div className="prose prose-sm max-w-none border-t pt-4" style={{ borderColor: borderStyle.borderColor }}>
               <div 
-                className="text-gray-400 leading-relaxed"
+                className="leading-relaxed"
+                style={{ color: textColor }}
                 dangerouslySetInnerHTML={{ __html: product.description || "No description available." }}
               />
             </div>
@@ -139,14 +145,15 @@ export const ProductDetailView = ({ product, onBack }: ProductDetailViewProps) =
                 <button
                   onClick={handleAddToCart}
                   disabled={product.status === 'soldout'}
-                  className="py-3 border border-white/30 hover:border-white text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-all"
+                  className="py-3 border border-gray-300 hover:border-gray-500 text-black rounded-lg font-bold flex items-center justify-center gap-2 transition-all"
                 >
                   <ShoppingCart size={18} />
                   CART
                 </button>
                 <button
                   disabled={product.status === 'soldout'}
-                  className="py-3 bg-[#34d399] hover:bg-[#2ebb88] text-black rounded-lg font-bold flex items-center justify-center gap-2 transition-all"
+                  className="py-3 text-black rounded-lg font-bold flex items-center justify-center gap-2 transition hover:brightness-95"
+                  style={{ backgroundColor: accentColor }}
                 >
                   <CreditCard size={18} />
                   ORDER

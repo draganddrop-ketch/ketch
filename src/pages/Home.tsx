@@ -294,9 +294,9 @@ export const Home = () => {
       )}
 
       {currentSection === 'BUILDER' && (
-        <button onClick={() => setIsMobileCanvasOpen(true)} className="lg:hidden fixed bottom-6 right-6 z-50 w-14 h-14 bg-[#34d399] rounded-full flex items-center justify-center shadow-lg"><Layers className="text-black" size={24} /></button>
+        <button onClick={() => setIsMobileCanvasOpen(true)} className="lg:hidden fixed bottom-6 right-6 z-50 w-14 h-14 bg-[var(--accent-color)] rounded-full flex items-center justify-center shadow-lg"><Layers className="text-black" size={24} /></button>
       )}
-      {showToast && <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50"><div className="bg-black/90 text-white border border-white/20 px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 backdrop-blur-md animate-bounce"><Check size={16} className="text-[#34d399]" /><span className="text-sm font-bold">드롭존에 추가되었습니다</span></div></div>}
+      {showToast && <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50"><div className="bg-black/90 text-white border border-white/20 px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 backdrop-blur-md animate-bounce"><Check size={16} className="text-[var(--accent-color)]" /><span className="text-sm font-bold">드롭존에 추가되었습니다</span></div></div>}
     </div>
   );
 };

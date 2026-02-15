@@ -110,6 +110,7 @@ export const SiteSettingsForm = () => {
           canvas_height: formData.canvas_height,
           
           product_accent_color: formData.accent_color,
+          accent_color: formData.accent_color,
           
           bg_color: formData.bg_color,
           font_family: formData.font_family,

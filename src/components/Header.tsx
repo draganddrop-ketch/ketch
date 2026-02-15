@@ -31,7 +31,7 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
 
   const globalBg = settings?.global_bg_color || '#000000';
   const navColor = settings?.nav_text_color || '#FFFFFF';
-  const accentColor = settings?.accent_color || '#34d399';
+  const accentColor = settings?.product_accent_color || settings?.accent_color || '#34d399';
   const borderColor = settings?.layout_border_color || 'rgba(255, 255, 255, 0.3)';
 
   const handleLogoClick = () => { navigate('/'); if (onLogoClick) onLogoClick(); };
@@ -74,9 +74,9 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
             </div>
 
             <div className="flex items-center gap-2 md:gap-4 py-1 ml-3 pl-3 md:ml-6 md:pl-6 shrink-0 whitespace-nowrap">
-              <button onClick={() => handleSectionChange('SHOP')} className={`text-[15px] md:text-lg font-bold uppercase tracking-wider transition-colors`} style={{ color: currentSection === 'SHOP' ? accentColor : navColor, opacity: currentSection === 'SHOP' ? 1 : 0.7 }}>SHOP</button>
-              <span className="text-[15px] md:text-lg" style={{ color: navColor, opacity: 0.3 }}>|</span>
-              <button onClick={() => handleSectionChange('BUILDER')} className={`text-[15px] md:text-lg font-bold uppercase tracking-wider transition-colors`} style={{ color: currentSection === 'BUILDER' ? accentColor : navColor, opacity: currentSection === 'BUILDER' ? 1 : 0.7 }}>BUILDER</button>
+              <button onClick={() => handleSectionChange('SHOP')} className="text-[15px] md:text-lg font-bold uppercase tracking-wider transition-colors" style={{ color: currentSection === 'SHOP' ? accentColor : navColor }}>SHOP</button>
+              <span className="text-[15px] md:text-lg" style={{ color: navColor }}>|</span>
+              <button onClick={() => handleSectionChange('BUILDER')} className="text-[15px] md:text-lg font-bold uppercase tracking-wider transition-colors" style={{ color: currentSection === 'BUILDER' ? accentColor : navColor }}>BUILDER</button>
             </div>
           </div>
 
