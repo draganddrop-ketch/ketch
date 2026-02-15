@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ShoppingCart, Search, User, UserPlus, X, LogOut, UserCircle, Menu } from 'lucide-react';
 import { useSiteSettings } from '../context/SiteSettingsContext';
@@ -40,6 +41,36 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
   const handleSearchSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') { navigate(`/?search=${encodeURIComponent(searchQuery)}`); setShowSearch(false); } };
   const handleSearchToggle = () => { setShowSearch(!showSearch); if (showSearch) { setSearchQuery(''); if (onSearchChange) onSearchChange(''); } };
   const handleMobileLinkClick = (path: string) => { navigate(path); setIsMobileMenuOpen(false); };
+
+  const menuOverlay = isMobileMenuOpen ? (
+    <div className="fixed inset-0 z-[9999] flex animate-fade-in">
+      <div className="flex-1 bg-black/40" onClick={() => setIsMobileMenuOpen(false)} />
+      <div className="h-full w-[50vw] md:w-[30vw] bg-black text-white shadow-2xl flex flex-col">
+        <div className="flex justify-end p-5 border-b border-white/10">
+          <button onClick={() => setIsMobileMenuOpen(false)} className="text-white"><X size={26} /></button>
+        </div>
+        <div className="flex flex-col gap-6 p-6">
+          {user ? (
+            <>
+              <button onClick={() => handleMobileLinkClick('/profile')} className="text-lg font-bold flex items-center gap-2"><UserCircle size={20} /> MY PAGE</button>
+              <button onClick={async () => { await signOut(); setIsMobileMenuOpen(false); navigate('/'); }} className="text-lg font-bold flex items-center gap-2"><LogOut size={20} /> LOGOUT</button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => handleMobileLinkClick('/login')} className="text-lg font-bold flex items-center gap-2"><User size={20} /> LOGIN</button>
+              <button onClick={() => handleMobileLinkClick('/signup')} className="text-lg font-bold flex items-center gap-2"><UserPlus size={20} /> SIGN UP</button>
+            </>
+          )}
+          <button onClick={() => handleMobileLinkClick('/cart')} className="text-lg font-bold flex items-center gap-2">
+            <ShoppingCart size={20} /> CART {cartCount > 0 ? `(${cartCount})` : ''}
+          </button>
+          <button onClick={() => { handleSearchToggle(); setIsMobileMenuOpen(false); }} className="text-lg font-bold flex items-center gap-2">
+            <Search size={20} /> {showSearch ? 'CLOSE SEARCH' : 'SEARCH'}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   return (
     <header className="w-full flex flex-col sticky top-0 z-50">
@@ -97,35 +128,7 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
         )}
       </div>
 
-      {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-[60] flex animate-fade-in">
-          <div className="flex-1 bg-black/40" onClick={() => setIsMobileMenuOpen(false)} />
-          <div className="h-full w-[50vw] md:w-[30vw] bg-black text-white shadow-2xl flex flex-col">
-            <div className="flex justify-end p-5 border-b border-white/10">
-              <button onClick={() => setIsMobileMenuOpen(false)} className="text-white"><X size={26} /></button>
-            </div>
-            <div className="flex flex-col gap-6 p-6">
-              {user ? (
-                <>
-                  <button onClick={() => handleMobileLinkClick('/profile')} className="text-lg font-bold flex items-center gap-2"><UserCircle size={20} /> MY PAGE</button>
-                  <button onClick={async () => { await signOut(); setIsMobileMenuOpen(false); navigate('/'); }} className="text-lg font-bold flex items-center gap-2"><LogOut size={20} /> LOGOUT</button>
-                </>
-              ) : (
-                <>
-                  <button onClick={() => handleMobileLinkClick('/login')} className="text-lg font-bold flex items-center gap-2"><User size={20} /> LOGIN</button>
-                  <button onClick={() => handleMobileLinkClick('/signup')} className="text-lg font-bold flex items-center gap-2"><UserPlus size={20} /> SIGN UP</button>
-                </>
-              )}
-              <button onClick={() => handleMobileLinkClick('/cart')} className="text-lg font-bold flex items-center gap-2">
-                <ShoppingCart size={20} /> CART {cartCount > 0 ? `(${cartCount})` : ''}
-              </button>
-              <button onClick={() => { handleSearchToggle(); setIsMobileMenuOpen(false); }} className="text-lg font-bold flex items-center gap-2">
-                <Search size={20} /> {showSearch ? 'CLOSE SEARCH' : 'SEARCH'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {menuOverlay && typeof document !== 'undefined' ? createPortal(menuOverlay, document.body) : null}
     </header>
   );
 };
