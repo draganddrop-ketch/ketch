@@ -47,7 +47,7 @@ export const ProductDetail = () => {
   return (
     <div className="min-h-screen" style={{ backgroundColor: bgColor, color: textColor }}>
       <Header cartCount={0} />
-      <div className="max-w-[1300px] mx-auto px-6 py-8">
+      <div className="w-full px-4 md:px-6 py-8">
         <button onClick={() => navigate(-1)} className="flex items-center gap-2 mb-8 hover:opacity-80" style={{ color: textColor, opacity: 0.6 }}><ArrowLeft size={20} /> BACK</button>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           <div className="space-y-4">

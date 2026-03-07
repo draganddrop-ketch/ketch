@@ -19,13 +19,19 @@ interface CanvasPreviewProps {
   isThumbnail?: boolean;
   canvasHeight?: number;
   customScale?: number; // 카트 등에서 강제로 비율을 줄일 때 사용
+  showGrid?: boolean;
+  backgroundColor?: string;
+  backgroundImage?: string | null;
 }
 
 export const CanvasPreview = ({ 
   items, 
   isThumbnail = false, 
   canvasHeight = 700,
-  customScale
+  customScale,
+  showGrid = true,
+  backgroundColor,
+  backgroundImage
 }: CanvasPreviewProps) => {
 
   // ✅ [핵심 로직] 저장된 정보를 바탕으로 표시 너비(px) 계산
@@ -61,11 +67,18 @@ export const CanvasPreview = ({
           position: 'relative',
           flexShrink: 0,
           transform: `scale(${finalScale})`, 
-          transformOrigin: 'center center' 
+          transformOrigin: 'center center',
+          backgroundColor: backgroundColor || 'transparent',
+          backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined,
+          backgroundSize: backgroundImage ? 'cover' : undefined,
+          backgroundPosition: backgroundImage ? 'center' : undefined,
+          backgroundRepeat: backgroundImage ? 'no-repeat' : undefined
         }}
       >
          {/* 배경 패턴 (옵션: 투명하게 하거나 유지) */}
-         <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'linear-gradient(#555 1px, transparent 1px), linear-gradient(90deg, #555 1px, transparent 1px)', backgroundSize: '50px 50px' }} />
+         {showGrid && (
+           <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'linear-gradient(#555 1px, transparent 1px), linear-gradient(90deg, #555 1px, transparent 1px)', backgroundSize: '50px 50px' }} />
+         )}
          
          {/* 아이템 렌더링 */}
          {items && items.map(item => (

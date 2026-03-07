@@ -63,7 +63,10 @@ export const ProductCard = ({
         className="group relative flex gap-3 bg-transparent cursor-pointer p-2 rounded-lg transition-all hover:bg-white/5 h-full items-center"
       >
         {/* 이미지 (작게) */}
-        <div className="w-[80px] h-[80px] flex-shrink-0 bg-zinc-900 rounded-md overflow-hidden relative border border-white/10 group-hover:border-white/30">
+        <div
+          className="w-[80px] h-[80px] flex-shrink-0 rounded-md overflow-hidden relative border border-white/10 group-hover:border-white/30"
+          style={{ backgroundColor: bgColor }}
+        >
           {product.image ? (
             <img src={product.image} alt={product.name} className="w-full h-full object-contain p-1" />
           ) : (
@@ -143,7 +146,7 @@ export const ProductCard = ({
         </div>
       </div>
 
-      <div className="aspect-square bg-zinc-900 flex items-center justify-center overflow-hidden relative">
+      <div className="aspect-square flex items-center justify-center overflow-hidden relative" style={{ backgroundColor: bgColor }}>
         {product.image ? (
           <img
             src={product.image}

@@ -90,6 +90,15 @@ export const SiteSettingsProvider = ({ children }: { children: ReactNode }) => {
       root.style.setProperty('--global-text', settings.global_text_color || '#FFFFFF');
       root.style.setProperty('--accent-color', settings.accent_color);
       root.style.setProperty('--nav-text', settings.nav_text_color || '#FFFFFF');
+
+      const faviconHref = settings.favicon_url || '';
+      let faviconLink = document.querySelector("link[rel='icon']") as HTMLLinkElement | null;
+      if (!faviconLink) {
+        faviconLink = document.createElement('link');
+        faviconLink.rel = 'icon';
+        document.head.appendChild(faviconLink);
+      }
+      faviconLink.href = faviconHref || '/vite.svg';
     }
   }, [settings]);
 

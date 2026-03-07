@@ -43,14 +43,14 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
       }
     : { 
         backgroundColor: canvasBgColor,
-        backgroundImage: 'linear-gradient(#e5e7eb 1px, transparent 1px), linear-gradient(90deg, #e5e7eb 1px, transparent 1px)', 
+        backgroundImage: isCapturing ? 'none' : 'linear-gradient(#e5e7eb 1px, transparent 1px), linear-gradient(90deg, #e5e7eb 1px, transparent 1px)', 
         backgroundSize: '50px 50px' 
       };
 
   useImperativeHandle(ref, () => ({ setCapturing: setIsCapturing, getHeight: () => canvasHeight }));
 
   useEffect(() => {
-    const updateScale = () => { if (canvasRef.current) { const currentWidth = canvasRef.current.clientWidth; if (currentWidth > 0) setScale(currentWidth / 450); } };
+    const updateScale = () => { if (canvasRef.current) { const currentWidth = canvasRef.current.clientWidth; if (currentWidth > 0) setScale(Math.min(1, currentWidth / 450)); } };
     updateScale();
     const observer = new ResizeObserver(() => { updateScale(); });
     if (canvasRef.current) observer.observe(canvasRef.current);

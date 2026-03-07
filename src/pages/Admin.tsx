@@ -12,6 +12,7 @@ import { KeyringItem } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { RichTextEditor } from '../components/RichTextEditor';
+import { ImageCropperModal } from '../components/ImageCropperModal';
 
 import { SiteSettingsForm } from '../components/SiteSettingsForm';
 import { MainPageManager } from '../components/MainPageManager';
@@ -22,6 +23,8 @@ import { CustomerManager } from '../components/CustomerManager';
 interface Category { id: string; name: string; slug: string; display_order: number; section: 'SHOP' | 'BUILDER'; is_hidden: boolean; }
 interface Profile { id: string; email: string; role: string; created_at: string; }
 type TabType = 'dashboard' | 'orders' | 'products' | 'customers' | 'reviews' | 'design' | 'settings' | 'shipping';
+type GalleryItem = { id: string; previewUrl: string; file?: File; isRemote: boolean };
+type CropTarget = { type: 'main' } | { type: 'gallery'; id: string };
 
 /**
  * 🛠️ 이미지 분석 함수
@@ -109,13 +112,15 @@ export const Admin = () => {
   });
   const [mainImageFile, setMainImageFile] = useState<File | null>(null);
   const [mainImagePreviewUrl, setMainImagePreviewUrl] = useState<string>('');
-  const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
-  const [galleryPreviewUrls, setGalleryPreviewUrls] = useState<string[]>([]);
+  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
   const [uploading, setUploading] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategorySection, setNewCategorySection] = useState<'SHOP'|'BUILDER'>('SHOP');
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editingCategoryName, setEditingCategoryName] = useState('');
+  const [isCropperOpen, setIsCropperOpen] = useState(false);
+  const [cropTarget, setCropTarget] = useState<CropTarget | null>(null);
+  const [cropImageSrc, setCropImageSrc] = useState('');
 
   useEffect(() => {
     if (!authLoading && !user) navigate('/admin/login');
@@ -129,7 +134,14 @@ export const Admin = () => {
   const getCategoryCount = (slug: string) => { if (slug === 'all') return products.length; return products.filter(p => { const catIds = p.category_ids || [p.category]; return catIds.includes(slug); }).length; };
   const filteredProducts = products.filter(product => { let matchCategory = true; if (activeCategory !== 'all') { const catIds = product.category_ids || [product.category]; matchCategory = catIds.includes(activeCategory); } const matchSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()); return matchCategory && matchSearch; });
   
-  const openAddModal = () => { setEditingProduct(null); setProductFormData({ name: '', section: 'SHOP', categories: [], sub_category: '', price: '', sale_price: '', stock_quantity: '100', status: 'active', description: '', is_best: false, is_new: false, real_width_cm: '', object_px_width: 0, image_width: 0 }); setMainImagePreviewUrl(''); setGalleryPreviewUrls([]); setIsProductModalOpen(true); };
+  const openAddModal = () => { 
+    setEditingProduct(null); 
+    setProductFormData({ name: '', section: 'SHOP', categories: [], sub_category: '', price: '', sale_price: '', stock_quantity: '100', status: 'active', description: '', is_best: false, is_new: false, real_width_cm: '', object_px_width: 0, image_width: 0 }); 
+    setMainImageFile(null);
+    setMainImagePreviewUrl(''); 
+    setGalleryItems([]); 
+    setIsProductModalOpen(true); 
+  };
   
   const openEditModal = (product: any) => { 
     setEditingProduct(product); 
@@ -153,8 +165,9 @@ export const Admin = () => {
       object_px_width: product.object_px_width || 0, 
       image_width: product.image_width || 0 
     }); 
+    setMainImageFile(null);
     setMainImagePreviewUrl(product.image || ''); 
-    setGalleryPreviewUrls(product.gallery_images || []); 
+    setGalleryItems((product.gallery_images || []).map((url: string) => ({ id: `${Date.now()}_${Math.random()}`, previewUrl: url, isRemote: true }))); 
     setIsProductModalOpen(true); 
   };
   
@@ -196,10 +209,13 @@ export const Admin = () => {
       let imageUrl = mainImagePreviewUrl; 
       if (mainImageFile) imageUrl = await uploadImageToSupabase(mainImageFile); 
       
-      let galleryUrls = [...galleryPreviewUrls].filter(url => url.startsWith('http')); 
-      if (galleryFiles.length > 0) { 
-        const newUrls = await Promise.all(galleryFiles.map(file => uploadImageToSupabase(file))); 
-        galleryUrls = [...galleryUrls, ...newUrls]; 
+      let galleryUrls: string[] = []; 
+      if (galleryItems.length > 0) { 
+        const newUrls = await Promise.all(galleryItems.map(async (item) => { 
+          if (item.file) return await uploadImageToSupabase(item.file); 
+          return item.previewUrl; 
+        })); 
+        galleryUrls = newUrls.filter(Boolean) as string[]; 
       } 
       
       // 3. Payload 생성 (자동 분석된 값 사용)
@@ -252,15 +268,67 @@ export const Admin = () => {
     if (e.target.files && e.target.files.length > 0) {
       if (type === 'main') {
         const file = e.target.files[0];
+        if (mainImagePreviewUrl.startsWith('blob:')) URL.revokeObjectURL(mainImagePreviewUrl);
         setMainImageFile(file);
         setMainImagePreviewUrl(URL.createObjectURL(file));
         await analyzeImage(file);
       } else {
         const newFiles = Array.from(e.target.files!);
-        setGalleryFiles(prev => [...prev, ...newFiles]);
-        setGalleryPreviewUrls(prev => [...prev, ...newFiles.map(f => URL.createObjectURL(f))]);
+        const newItems: GalleryItem[] = newFiles.map((file) => ({
+          id: `${Date.now()}_${Math.random()}`,
+          previewUrl: URL.createObjectURL(file),
+          file,
+          isRemote: false
+        }));
+        setGalleryItems(prev => [...prev, ...newItems]);
       }
     }
+  };
+
+  const openCropperForMain = () => {
+    if (!mainImagePreviewUrl) return;
+    setCropImageSrc(mainImagePreviewUrl);
+    setCropTarget({ type: 'main' });
+    setIsCropperOpen(true);
+  };
+
+  const openCropperForGallery = (id: string) => {
+    const item = galleryItems.find(i => i.id === id);
+    if (!item) return;
+    setCropImageSrc(item.previewUrl);
+    setCropTarget({ type: 'gallery', id });
+    setIsCropperOpen(true);
+  };
+
+  const closeCropper = () => {
+    setIsCropperOpen(false);
+    setCropTarget(null);
+    setCropImageSrc('');
+  };
+
+  const handleCropSave = async (file: File, previewUrl: string) => {
+    if (!cropTarget) return;
+    if (cropTarget.type === 'main') {
+      if (mainImagePreviewUrl.startsWith('blob:')) URL.revokeObjectURL(mainImagePreviewUrl);
+      setMainImageFile(file);
+      setMainImagePreviewUrl(previewUrl);
+      await analyzeImage(file);
+    } else {
+      setGalleryItems(prev => prev.map(item => {
+        if (item.id !== cropTarget.id) return item;
+        if (item.previewUrl.startsWith('blob:')) URL.revokeObjectURL(item.previewUrl);
+        return { ...item, previewUrl, file, isRemote: false };
+      }));
+    }
+    closeCropper();
+  };
+
+  const removeGalleryItem = (id: string) => {
+    setGalleryItems(prev => {
+      const target = prev.find(item => item.id === id);
+      if (target?.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter(item => item.id !== id);
+    });
   };
 
   const analyzeImage = async (source: File | string) => {
@@ -388,10 +456,42 @@ export const Admin = () => {
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">재고 수량</label><input type="number" value={productFormData.stock_quantity} onChange={e => setProductFormData({...productFormData, stock_quantity: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none" placeholder="0" /></div>
               </div>
               <div className="pt-4 border-t border-gray-100 space-y-4">
-                 <div><label className="block text-sm font-medium text-gray-700 mb-2">메인 썸네일</label><div className="w-32 h-32 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center relative overflow-hidden group">{mainImagePreviewUrl ? <img src={mainImagePreviewUrl} className="w-full h-full object-cover" /> : <ImageIcon className="text-gray-400" />}<input type="file" accept="image/*" onChange={e => handleImageChange(e, 'main')} className="absolute inset-0 opacity-0 cursor-pointer" /></div>
-                 {mainImagePreviewUrl && <p className="text-xs text-gray-400 mt-1">{isAnalyzingImage ? "⏳ 이미지 크기 분석 중..." : `이미지 분석 완료: ${productFormData.object_px_width}px (물체)`}</p>}
+                 <div>
+                   <label className="block text-sm font-medium text-gray-700 mb-2">메인 썸네일</label>
+                   <div className="w-32 h-32 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center relative overflow-hidden group">
+                     {mainImagePreviewUrl ? (
+                       <>
+                         <img src={mainImagePreviewUrl} className="w-full h-full object-cover" />
+                         <button type="button" onClick={openCropperForMain} className="absolute bottom-1 right-1 z-10 bg-white/90 text-gray-700 text-xs px-2 py-1 rounded shadow opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                           <Edit2 size={12} /> 편집
+                         </button>
+                       </>
+                     ) : (
+                       <ImageIcon className="text-gray-400" />
+                     )}
+                     <input type="file" accept="image/*" onChange={e => handleImageChange(e, 'main')} className="absolute inset-0 opacity-0 cursor-pointer z-0" />
+                   </div>
+                   {mainImagePreviewUrl && <p className="text-xs text-gray-400 mt-1">{isAnalyzingImage ? "⏳ 이미지 크기 분석 중..." : `이미지 분석 완료: ${productFormData.object_px_width}px (물체)`}</p>}
                  </div>
-                 <div><label className="block text-sm font-medium text-gray-700 mb-2">추가 갤러리 이미지</label><div className="flex gap-2 flex-wrap">{galleryPreviewUrls.map((url, idx) => (<div key={idx} className="w-24 h-24 rounded-lg overflow-hidden border border-gray-200 relative group"><img src={url} className="w-full h-full object-cover" /><button type="button" onClick={() => { setGalleryPreviewUrls(prev => prev.filter((_, i) => i !== idx)); setGalleryFiles(prev => prev.filter((_, i) => i !== idx)); }} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"><X size={12}/></button></div>))}<div className="w-24 h-24 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 relative"><Plus className="text-gray-400 mb-1" /><span className="text-xs text-gray-500">추가</span><input type="file" accept="image/*" multiple onChange={e => handleImageChange(e, 'gallery')} className="absolute inset-0 opacity-0 cursor-pointer" /></div></div></div>
+                 <div>
+                   <label className="block text-sm font-medium text-gray-700 mb-2">추가 갤러리 이미지</label>
+                   <div className="flex gap-2 flex-wrap">
+                     {galleryItems.map((item) => (
+                       <div key={item.id} className="w-24 h-24 rounded-lg overflow-hidden border border-gray-200 relative group">
+                         <img src={item.previewUrl} className="w-full h-full object-cover" />
+                         <button type="button" onClick={() => openCropperForGallery(item.id)} className="absolute bottom-1 left-1 bg-white/90 text-gray-700 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow">
+                           <Edit2 size={12} />
+                         </button>
+                         <button type="button" onClick={() => removeGalleryItem(item.id)} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"><X size={12}/></button>
+                       </div>
+                     ))}
+                     <div className="w-24 h-24 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 relative">
+                       <Plus className="text-gray-400 mb-1" />
+                       <span className="text-xs text-gray-500">추가</span>
+                       <input type="file" accept="image/*" multiple onChange={e => handleImageChange(e, 'gallery')} className="absolute inset-0 opacity-0 cursor-pointer" />
+                     </div>
+                   </div>
+                 </div>
               </div>
               <div className="pt-4 border-t border-gray-100"><label className="block text-sm font-medium text-gray-700 mb-2">상세 설명</label><RichTextEditor value={productFormData.description} onChange={val => setProductFormData({...productFormData, description: val})} placeholder="상품 설명" /></div>
               <div className="flex gap-3 pt-4 border-t border-gray-100"><button type="button" onClick={() => setIsProductModalOpen(false)} className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-lg">취소</button><button type="submit" disabled={uploading} className="flex-1 py-3 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700">{uploading ? '저장 중...' : '저장하기'}</button></div>
@@ -399,6 +499,15 @@ export const Admin = () => {
           </div>
         </div>
       )}
+
+      <ImageCropperModal
+        open={isCropperOpen}
+        imageSrc={cropImageSrc}
+        aspect={1}
+        title="이미지 편집"
+        onCancel={closeCropper}
+        onSave={handleCropSave}
+      />
       
       {isCategoryManagerOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white">

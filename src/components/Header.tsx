@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ShoppingCart, Search, User, UserPlus, X, LogOut, UserCircle, Menu } from 'lucide-react';
@@ -15,6 +15,7 @@ interface HeaderProps {
 }
 
 export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
+  const headerRef = useRef<HTMLElement | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { settings } = useSiteSettings();
@@ -41,6 +42,17 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
   const handleSearchSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') { navigate(`/?search=${encodeURIComponent(searchQuery)}`); setShowSearch(false); } };
   const handleSearchToggle = () => { setShowSearch(!showSearch); if (showSearch) { setSearchQuery(''); if (onSearchChange) onSearchChange(''); } };
   const handleMobileLinkClick = (path: string) => { navigate(path); setIsMobileMenuOpen(false); };
+
+  useEffect(() => {
+    const updateHeaderOffset = () => {
+      if (!headerRef.current) return;
+      document.documentElement.style.setProperty('--header-offset', `${headerRef.current.offsetHeight}px`);
+    };
+    updateHeaderOffset();
+    const onResize = () => updateHeaderOffset();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [showSearch, settings?.announcement_height]);
 
   const menuOverlay = isMobileMenuOpen ? (
     <div className="fixed inset-0 z-[9999] flex animate-fade-in">
@@ -73,7 +85,7 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
   ) : null;
 
   return (
-    <header className="w-full flex flex-col sticky top-0 z-50">
+    <header ref={headerRef} className="w-full flex flex-col sticky top-0 z-50">
       <AnnouncementBar />
       
       {/* ✅ [수정] 
@@ -90,7 +102,7 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
           borderBottom: 'none'       // 헤더 하단 선 제거
         }}
       >
-        <div className="max-w-[1300px] mx-auto px-4 py-2 md:px-6 md:py-4 flex items-center justify-between">
+        <div className="w-full px-4 py-2 md:px-6 md:py-4 flex items-center justify-between">
           
           <div className="flex items-center">
             <div className="shrink-0 flex items-center">
@@ -121,7 +133,7 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
 
         {showSearch && (
           <div className="border-t animate-fade-in" style={{ backgroundColor: globalBg, borderColor: borderColor }}>
-            <div className="max-w-[1300px] mx-auto px-6 py-4">
+            <div className="w-full px-4 md:px-6 py-4">
               <input type="text" value={searchQuery} onChange={(e) => handleSearchChange(e.target.value)} onKeyDown={handleSearchSubmit} placeholder="Search products..." className="w-full border px-4 py-3 focus:outline-none transition-colors" style={{ backgroundColor: 'transparent', color: navColor, borderColor: borderColor }} autoFocus />
             </div>
           </div>

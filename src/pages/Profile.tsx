@@ -1,30 +1,34 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, ShoppingCart, Settings, Trash2, Share2, ZoomIn, Edit2, CreditCard, X, Package, Save } from 'lucide-react';
+import { User, ShoppingCart, Settings, Trash2, Share2, ZoomIn, Edit2, CreditCard, X, Package, Save, Heart } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Header } from '../components/Header';
 import { useCart } from '../context/CartContext';
 import { useSiteSettings } from '../context/SiteSettingsContext'; // ✅ 설정 가져오기
+import { useLike } from '../context/LikeContext';
+import { KeyringItem } from '../types';
 import { CanvasPreview } from '../components/CanvasPreview';
 import { AddressModal } from '../components/AddressModal'; 
 
 interface UserProfile { id: string; email: string; full_name: string | null; created_at: string; username?: string; phone?: string; zipcode?: string; address?: string; address_detail?: string; birthday?: string; gender?: string; is_agreed_marketing?: boolean; }
 interface Order { id: string; order_date: string; status: string; total_price: number; custom_image_url: string | null; items: Array<{ id: string; name: string; price: number; quantity: number; }>; }
 interface SavedDesign { id: string; design_name: string; snapshot_image: string; created_at: string; design_data: any; total_price?: number; }
-type TabType = 'ORDER_HISTORY' | 'SAVED_DESIGNS' | 'SETTINGS';
+type TabType = 'ORDER_HISTORY' | 'SAVED_DESIGNS' | 'LIKED' | 'SETTINGS';
 
 export default function Profile() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { addToCart } = useCart();
   const { settings, getBorderStyle } = useSiteSettings(); // ✅ 설정 사용
+  const { likedItems } = useLike();
   
   const [activeTab, setActiveTab] = useState<TabType>('SAVED_DESIGNS');
   const [savedDesigns, setSavedDesigns] = useState<SavedDesign[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [likedProducts, setLikedProducts] = useState<KeyringItem[]>([]);
   
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedDesign, setSelectedDesign] = useState<SavedDesign | null>(null);
@@ -39,8 +43,23 @@ export default function Profile() {
   const bgColor = settings?.global_bg_color || '#000000';
   const textColor = settings?.global_text_color || '#FFFFFF';
   const borderStyle = getBorderStyle();
+  const canvasBgColor = settings?.canvas_bg_color || '#FFFFFF';
+  const canvasBgImage = settings?.canvas_bg_image;
+  const cardBg = settings?.product_card_bg || '#000000';
+  const cardText = settings?.product_text_color || '#000000';
+  const cardSubText = settings?.product_sub_text_color || '#6b7280';
 
   useEffect(() => { if (!user) { navigate('/login'); return; } fetchProfileAndOrders(); }, [user, navigate]);
+
+  useEffect(() => {
+    const fetchLikedProducts = async () => {
+      if (!likedItems || likedItems.length === 0) { setLikedProducts([]); return; }
+      const { data, error } = await supabase.from('products').select('*').in('id', likedItems);
+      if (error) { console.error('Failed to load liked products', error); return; }
+      setLikedProducts((data || []) as KeyringItem[]);
+    };
+    fetchLikedProducts();
+  }, [likedItems]);
 
   const fetchProfileAndOrders = async () => {
     if (!user) return;
@@ -73,7 +92,6 @@ export default function Profile() {
     <div className="min-h-screen" style={{ backgroundColor: bgColor, color: textColor }}>
       <Header />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <h1 className="text-4xl font-bold mb-8 text-[var(--accent-color)] tracking-wider font-mono">MY DASHBOARD</h1>
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           
           <div className="lg:col-span-1">
@@ -90,8 +108,21 @@ export default function Profile() {
           <div className="lg:col-span-3">
             <div className="border rounded-lg overflow-hidden min-h-[600px]" style={borderStyle}>
               <div className="flex border-b" style={{ borderColor: borderStyle.borderColor }}>
-                {(['ORDER_HISTORY', 'SAVED_DESIGNS', 'SETTINGS'] as TabType[]).map((tab) => (
-                  <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-4 font-bold text-sm tracking-wider transition-colors ${activeTab === tab ? 'bg-[var(--accent-color)] text-black' : 'hover:bg-white/5'}`} style={activeTab !== tab ? { color: textColor } : {}}>{tab.replace('_', ' ')}</button>
+                {([
+                  { key: 'ORDER_HISTORY', label: 'ORDER HISTORY' },
+                  { key: 'SAVED_DESIGNS', label: 'SAVED DESIGNS' },
+                  { key: 'LIKED', label: <Heart size={16} fill="currentColor" /> },
+                  { key: 'SETTINGS', label: 'SETTINGS' }
+                ] as { key: TabType; label: ReactNode }[]).map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key)}
+                    className={`flex-1 py-4 font-bold text-sm tracking-wider transition-colors flex items-center justify-center ${activeTab === tab.key ? 'bg-[var(--accent-color)] text-black' : 'hover:bg-white/5'}`}
+                    style={activeTab !== tab.key ? { color: textColor } : {}}
+                    title={tab.key === 'LIKED' ? 'LIKED' : undefined}
+                  >
+                    {tab.label}
+                  </button>
                 ))}
               </div>
               <div className="p-6">
@@ -108,7 +139,7 @@ export default function Profile() {
                           // ✅ Saved Designs 카드 화이트 버전 (배경 흰색 고정)
                           <div key={design.id} className="bg-white border border-gray-200 hover:border-[var(--accent-color)] transition-all rounded-lg overflow-hidden group shadow-sm">
                             <div className="aspect-square bg-gray-50 relative cursor-pointer overflow-hidden border-b border-gray-100" onClick={() => openDetailModal(design)}>
-                               <CanvasPreview items={design.design_data?.items || []} isThumbnail={true} canvasHeight={design.design_data?.canvasHeight || 700} />
+                               <CanvasPreview items={design.design_data?.items || []} isThumbnail={true} canvasHeight={design.design_data?.canvasHeight || 700} showGrid={false} backgroundColor={canvasBgColor} backgroundImage={canvasBgImage} />
                               <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity z-20"><ZoomIn className="text-white w-10 h-10 drop-shadow-lg" /></div>
                             </div>
                             <div className="p-4">
@@ -119,6 +150,42 @@ export default function Profile() {
                                 <button onClick={() => handleOrder(design)} className="bg-gray-800 hover:bg-gray-700 text-white font-bold py-2 rounded text-xs flex items-center justify-center gap-1"><CreditCard size={12}/> ORDER</button>
                                 <button onClick={(e) => { e.stopPropagation(); handleShare(design); }} className="border border-gray-300 text-gray-500 font-bold py-2 rounded text-xs flex items-center justify-center gap-1 hover:bg-gray-50"><Share2 size={12}/> SHARE</button>
                                 <button onClick={(e) => { e.stopPropagation(); handleDeleteDesign(design.id); }} className="bg-red-50 text-red-500 border border-red-200 font-bold py-2 rounded text-xs flex items-center justify-center gap-1 hover:bg-red-100"><Trash2 size={12}/> DEL</button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'LIKED' && (
+                  <div>
+                    {likedProducts.length === 0 ? (
+                      <div className="text-center py-12 opacity-50">No Likes</div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {likedProducts.map((product) => (
+                          <div
+                            key={product.id}
+                            className="border rounded-lg overflow-hidden cursor-pointer transition-all hover:border-[var(--accent-color)]"
+                            style={{ borderColor: borderStyle.borderColor, backgroundColor: cardBg }}
+                            onClick={() => navigate(`/product/${product.id}`)}
+                          >
+                            <div className="aspect-square flex items-center justify-center overflow-hidden" style={{ backgroundColor: cardBg }}>
+                              {product.image_url || product.image ? (
+                                <img src={product.image_url || product.image} className="w-full h-full object-contain p-4" />
+                              ) : (
+                                <div className="text-sm opacity-50">NO IMAGE</div>
+                              )}
+                            </div>
+                            <div className="p-4">
+                              <div className="font-bold truncate" style={{ color: cardText }}>{product.name}</div>
+                              <div className="text-xs uppercase tracking-wider mt-1" style={{ color: cardSubText }}>
+                                {product.sub_category || product.category}
+                              </div>
+                              <div className="mt-3 font-bold text-[var(--accent-color)]">
+                                ₩{(product.sale_price || product.price).toLocaleString()}
                               </div>
                             </div>
                           </div>
@@ -171,7 +238,7 @@ export default function Profile() {
         <div className="fixed inset-0 bg-black/95 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowDetailModal(false)}>
           <div className="bg-gray-900 border-2 border-[var(--accent-color)] rounded-lg overflow-hidden w-full max-w-6xl max-h-[95vh] flex flex-col md:flex-row" onClick={(e) => e.stopPropagation()}>
             <div className="flex-1 bg-white flex items-center justify-center relative min-h-[500px]">
-               <CanvasPreview items={selectedDesign.design_data?.items || []} isThumbnail={false} canvasHeight={selectedDesign.design_data?.canvasHeight || 700} />
+               <CanvasPreview items={selectedDesign.design_data?.items || []} isThumbnail={false} canvasHeight={selectedDesign.design_data?.canvasHeight || 700} showGrid={false} backgroundColor={canvasBgColor} backgroundImage={canvasBgImage} />
             </div>
             <div className="w-full md:w-[400px] p-8 flex flex-col bg-gray-900 overflow-y-auto">
                <div className="flex justify-between items-start mb-6"><h3 className="text-2xl font-black text-white">{selectedDesign.design_name}</h3><button onClick={() => setShowDetailModal(false)}><X className="text-gray-400 hover:text-white"/></button></div>

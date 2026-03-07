@@ -60,6 +60,7 @@ export const Home = () => {
   const globalText = settings?.global_text_color || '#FFFFFF';
   const globalBorder = settings?.layout_border_color || 'rgba(255, 255, 255, 0.3)';
   const borderStyle = getBorderStyle();
+  const canvasBgColor = settings?.canvas_bg_color || '#FFFFFF';
 
   useEffect(() => { fetchAllData(); }, []);
   useEffect(() => { const query = searchParams.get('search'); if (query !== null) setSearchQuery(query); }, [searchParams]);
@@ -77,7 +78,7 @@ export const Home = () => {
   const handleQuickAdd = (product: KeyringItem) => { if (currentSection === 'SHOP') { addToCart({ id: product.id, name: product.name, price: product.sale_price || product.price, image: product.image, quantity: 1 }); alert('Added to Cart!'); } else { addItemToCanvas(product); setShowToast(true); setTimeout(() => setShowToast(false), 2000); } };
   const handleCanvasItemsChange = (items: CanvasItem[]) => setCanvasItems(items);
   
-  const captureCanvasSnapshot = async (): Promise<string | null> => { const el = document.getElementById('canvas-drop-zone'); if (!el) return null; try { if (canvasBuilderRef.current) canvasBuilderRef.current.setCapturing(true); await new Promise(r => setTimeout(r, 100)); const snap = await html2canvas(el, { useCORS: true, allowTaint: true, backgroundColor: '#09090b', scale: 0.5, logging: false }); const url = snap.toDataURL('image/jpeg', 0.7); if (canvasBuilderRef.current) canvasBuilderRef.current.setCapturing(false); return url; } catch (e) { console.error(e); if (canvasBuilderRef.current) canvasBuilderRef.current.setCapturing(false); return null; } };
+  const captureCanvasSnapshot = async (): Promise<string | null> => { const el = document.getElementById('canvas-drop-zone'); if (!el) return null; try { if (canvasBuilderRef.current) canvasBuilderRef.current.setCapturing(true); await new Promise(r => setTimeout(r, 100)); const snap = await html2canvas(el, { useCORS: true, allowTaint: true, backgroundColor: canvasBgColor, scale: 0.5, logging: false }); const url = snap.toDataURL('image/jpeg', 0.7); if (canvasBuilderRef.current) canvasBuilderRef.current.setCapturing(false); return url; } catch (e) { console.error(e); if (canvasBuilderRef.current) canvasBuilderRef.current.setCapturing(false); return null; } };
   
   const handleAddToCart = async () => { if (canvasItems.length === 0) return alert('Empty canvas!'); const isMobile = window.innerWidth < 1024; if (isMobile && !isMobileCanvasOpen) { setIsMobileCanvasOpen(true); await new Promise(r => setTimeout(r, 300)); } const h = canvasBuilderRef.current?.getHeight() || 700; const url = await captureCanvasSnapshot(); const total = canvasItems.reduce((s, i) => s + i.price, 0); addToCart({ id: 'custom-' + Date.now(), name: 'Custom Set', price: total, image: url || '', items: canvasItems, canvasHeight: h } as any); alert('Added!'); navigate('/cart'); setIsMobileCanvasOpen(false); };
   const handleCheckout = async () => { await handleAddToCart(); };
@@ -141,7 +142,7 @@ export const Home = () => {
           });
           if (categoryProducts.length === 0) return null;
           return (
-            <div key={category.id} className="px-6 md:px-0">
+            <div key={category.id} className="px-0">
               <div className="flex justify-between items-end mb-4 border-b pb-2" style={{ borderColor: globalBorder }}>
                 <h2 className="font-bold uppercase tracking-wider text-sm" style={{ color: globalText }}>{category.name}</h2>
                 <button onClick={() => { setSelectedCategory(category.slug); setViewMode('CATEGORY'); window.scrollTo(0,0); }} className="text-xs opacity-60 hover:opacity-100 flex items-center gap-1" style={{ color: globalText }}>VIEW ALL <ArrowRight size={12}/></button>
@@ -176,15 +177,15 @@ export const Home = () => {
     };
 
     return (
-      <div className="w-full pt-4">
-        <div className="w-full px-[30px] mb-16">
+      <div className="w-full pt-4 px-4 md:px-6">
+        <div className="w-full mb-16">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="w-full h-auto bg-transparent overflow-hidden relative group rounded-sm"><Swiper {...commonSwiperProps}>{slot1.map((src, idx) => (<SwiperSlide key={`s1-${idx}`}><img src={src} className="w-full h-auto object-contain" alt="Slot 1" /></SwiperSlide>))}</Swiper></div>
             <div className="w-full h-auto bg-transparent overflow-hidden relative group rounded-sm"><Swiper {...commonSwiperProps}>{slot2.map((src, idx) => (<SwiperSlide key={`s2-${idx}`}><img src={src} className="w-full h-auto object-contain" alt="Slot 2" /></SwiperSlide>))}</Swiper></div>
             <div className="w-full h-auto bg-transparent overflow-hidden relative group rounded-sm"><Swiper {...commonSwiperProps}>{slot3.map((src, idx) => (<SwiperSlide key={`s3-${idx}`}><img src={src} className="w-full h-auto object-contain" alt="Slot 3" /></SwiperSlide>))}</Swiper></div>
           </div>
         </div>
-        <div className="max-w-[1300px] mx-auto px-4 md:px-6 mt-12">{renderCategorySections(settings?.shop_home_categories)}</div>
+        <div className="w-full mt-12">{renderCategorySections(settings?.shop_home_categories)}</div>
       </div>
     );
   };
@@ -211,42 +212,60 @@ export const Home = () => {
       
       {/* 2. CategoryTabs Wrapper (Relative - Not Sticky) */}
       {/* ✅ sticky 제거 -> 스크롤 시 위로 사라짐 */}
-      <div className="relative z-40 w-full" style={{ backgroundColor: globalBg }}>
+      <div className="sticky z-40 w-full" style={{ top: 'var(--header-offset, 0px)', backgroundColor: 'transparent' }}>
         <CategoryTabs activeCategory={selectedCategory || 'all'} onCategoryChange={handleCategoryChange} />
       </div>
 
       {currentSection === 'SHOP' && !selectedProduct && !selectedCategory ? (
         renderShopLayout()
       ) : (
-        <div className="max-w-[1300px] mx-auto px-4 md:px-6 pt-[30px] pb-20 relative z-0">
+        <div className="w-full px-4 md:px-6 pt-[8px] pb-20 relative z-0">
           
           {currentSection === 'SHOP' && selectedCategory && !selectedProduct && (
-            <div className="px-6 md:px-0 mt-6">
+            <div className="px-0 mt-6">
               <h2 className="font-bold uppercase tracking-wider mb-6 text-sm" style={{ color: globalText }}>{selectedCategory} LIST</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
                 {filteredProducts.map(p => (
-                  <ProductCard key={p.id} product={p} onClick={handleProductClick} onAddToCanvas={handleQuickAdd} mode="SHOP" />
+                  <ProductCard
+                    key={p.id}
+                    product={p}
+                    onClick={handleProductClick}
+                    onAddToCanvas={handleQuickAdd}
+                    mode="SHOP"
+                    customStyle={{
+                      bg: settings?.product_card_bg,
+                      text: settings?.product_text_color,
+                      subText: settings?.product_sub_text_color,
+                      accent: settings?.product_accent_color,
+                      nameSize: settings?.product_name_size,
+                      catSize: settings?.product_category_size,
+                      priceSize: settings?.product_price_size
+                    }}
+                  />
                 ))}
               </div>
             </div>
           )}
 
           {(currentSection === 'BUILDER' || selectedProduct) && (
-            <div className={`grid gap-6 ${currentSection === 'BUILDER' ? 'grid-cols-1 lg:grid-cols-[1fr_35%]' : 'grid-cols-1'}`}>
+            <div className={`grid gap-6 ${currentSection === 'BUILDER' ? 'grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(320px,460px)]' : 'grid-cols-1'}`}>
               
-              <div className="border p-0 md:p-6" style={{ backgroundColor: globalBg, borderColor: globalBorder }}>
+              <div
+                className={`${currentSection === 'BUILDER' ? 'border-0' : 'border'} p-0`}
+                style={{ backgroundColor: globalBg, borderColor: globalBorder }}
+              >
                 {selectedProduct ? (
-                  <div className="px-6 md:px-0 py-6 md:py-0"><ProductDetailView product={selectedProduct} onBack={() => setSelectedProduct(null)} /></div>
+                  <div className="px-0 py-6 md:py-0"><ProductDetailView product={selectedProduct} onBack={() => setSelectedProduct(null)} /></div>
                 ) : (
                   <div className="space-y-4">
                     {viewMode === 'HOME' && settings?.builder_banner_images && (
-                      <div className="mb-8 w-full">
+                      <div className="w-full mb-5">
                         <ShopBannerSlider images={settings.builder_banner_images} transition={settings.builder_banner_transition} speed={settings.builder_banner_speed} />
                       </div>
                     )}
                     
                     {viewMode === 'HOME' ? (renderCategorySections(settings?.builder_home_categories)) : (
-                      <div className="px-6 md:px-0 mt-[30px]">
+                      <div className="px-0 mt-[30px]">
                         <h2 className="font-bold uppercase tracking-wider mb-6 text-sm" style={{ color: globalText }}>
                           {selectedCategory ? `${selectedCategory}` : 'PRODUCT LIST'}
                         </h2>
@@ -277,12 +296,12 @@ export const Home = () => {
               </div>
 
               {currentSection === 'BUILDER' && (
-                <div className={`flex flex-col gap-4 ${isMobileCanvasOpen ? 'fixed inset-0 z-50 bg-black p-4 overflow-y-auto safe-area-inset-top lg:static lg:bg-transparent lg:p-0 lg:overflow-visible lg:w-full lg:relative lg:z-auto' : 'hidden lg:flex lg:relative lg:w-full lg:static'}`}>
+                <div className={`flex flex-col gap-4 ${isMobileCanvasOpen ? 'fixed inset-0 z-50 bg-black p-4 overflow-y-auto safe-area-inset-top lg:static lg:bg-transparent lg:p-0 lg:overflow-visible lg:w-full lg:relative lg:z-auto' : 'hidden lg:flex lg:relative lg:w-full lg:static'} lg:justify-self-end`}>
                   <div className="flex justify-between items-center mb-4 pb-2 border-b lg:hidden" style={{ borderColor: globalBorder }}>
                     <span className="font-bold text-lg" style={{ color: globalText }}>DROP ZONE</span>
                     <button onClick={() => setIsMobileCanvasOpen(false)} className="text-white hover:text-red-500"><X size={28} /></button>
                   </div>
-                  <div className="border bg-black w-full" id="canvas-drop-zone" style={{ borderColor: globalBorder }}>
+                  <div className="border bg-black w-full max-w-[450px]" id="canvas-drop-zone" style={{ borderColor: globalBorder }}>
                     <CanvasBuilder ref={canvasBuilderRef} onItemsChange={handleCanvasItemsChange} initialHeight={settings?.canvas_height || 650} />
                   </div>
                   <OrderSummary items={canvasItems.map(item => ({ id: item.canvasId, name: item.name, price: item.price }))} onAddToCart={handleAddToCart} onCheckout={handleCheckout} onSaveDesign={handleSaveDesign} onShare={handleShareImage} />

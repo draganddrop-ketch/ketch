@@ -17,7 +17,6 @@ export const SiteSettingsForm = () => {
     primary_color: '#34d399',
     is_maintenance_mode: false,
     canvas_height: 700,
-    accent_color: '#34d399',
     bg_color: '#000000',
     font_family: 'JetBrains Mono',
     logo_url: '',
@@ -46,7 +45,6 @@ export const SiteSettingsForm = () => {
         primary_color: settings.primary_color || '#34d399',
         is_maintenance_mode: settings.is_maintenance_mode || false,
         canvas_height: settings.canvas_height || 700,
-        accent_color: settings.product_accent_color || settings.accent_color || '#34d399',
         bg_color: settings.bg_color || '#000000',
         font_family: settings.font_family || 'JetBrains Mono',
         logo_url: settings.logo_url || '',
@@ -108,10 +106,6 @@ export const SiteSettingsForm = () => {
           primary_color: formData.primary_color,
           is_maintenance_mode: formData.is_maintenance_mode,
           canvas_height: formData.canvas_height,
-          
-          product_accent_color: formData.accent_color,
-          accent_color: formData.accent_color,
-          
           bg_color: formData.bg_color,
           font_family: formData.font_family,
           logo_url: formData.logo_url,
@@ -182,17 +176,8 @@ export const SiteSettingsForm = () => {
             <div><label className="block text-sm font-medium text-gray-700 mb-2">Banner Height</label><input type="number" name="banner_height" value={formData.banner_height} onChange={handleInputChange} className="w-full px-4 py-2 border rounded-lg outline-none"/></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-2">Canvas Height</label><input type="number" name="canvas_height" value={formData.canvas_height} onChange={handleInputChange} className="w-full px-4 py-2 border rounded-lg outline-none"/></div>
             
-            <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium text-gray-700 mb-2">Background Color</label><div className="flex gap-3"><input type="color" name="bg_color" value={formData.bg_color} onChange={handleInputChange} className="w-16 h-10 border rounded cursor-pointer" /><input type="text" name="bg_color" value={formData.bg_color} onChange={handleInputChange} className="flex-1 px-4 py-2 border rounded-lg outline-none" /></div></div>
-                
-                {/* 엑센트 컬러 설정 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Accent Color (Neon)</label>
-                  <div className="flex gap-3">
-                    <input type="color" name="accent_color" value={formData.accent_color} onChange={handleInputChange} className="w-16 h-10 border rounded cursor-pointer" />
-                    <input type="text" name="accent_color" value={formData.accent_color} onChange={handleInputChange} className="flex-1 px-4 py-2 border rounded-lg outline-none" />
-                  </div>
-                </div>
+            <div className="space-y-4">
+              <div><label className="block text-sm font-medium text-gray-700 mb-2">Background Color</label><div className="flex gap-3"><input type="color" name="bg_color" value={formData.bg_color} onChange={handleInputChange} className="w-16 h-10 border rounded cursor-pointer" /><input type="text" name="bg_color" value={formData.bg_color} onChange={handleInputChange} className="flex-1 px-4 py-2 border rounded-lg outline-none" /></div></div>
             </div>
 
             <div>

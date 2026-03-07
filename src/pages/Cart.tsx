@@ -23,6 +23,8 @@ export const Cart = () => {
   const globalBg = settings?.global_bg_color || '#000000';
   const globalText = settings?.global_text_color || '#FFFFFF';
   const globalBorder = settings?.layout_border_color || 'rgba(255, 255, 255, 0.3)';
+  const canvasBgColor = settings?.canvas_bg_color || '#FFFFFF';
+  const canvasBgImage = settings?.canvas_bg_image;
 
   const subtotal = getTotalPrice();
   const shipping = cartItems.length > 0 ? 3000 : 0;
@@ -55,8 +57,8 @@ export const Cart = () => {
       <Header />
       <div className="max-w-[1200px] mx-auto px-6 py-12">
         <div className="flex items-center gap-3 mb-8">
-          <ShoppingBag size={32} className="text-cyan-400" />
-          <h2 className="text-3xl font-bold uppercase tracking-wide">Your Cart</h2>
+          <ShoppingBag size={32} style={{ color: globalText }} />
+          <h2 className="text-3xl font-bold uppercase tracking-wide">CART</h2>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
@@ -68,9 +70,23 @@ export const Cart = () => {
             ) : (
               <div className="space-y-4">
                 {cartItems.map((item) => (
-                  <div key={item.id} className="border p-6 flex gap-6 rounded-lg relative group" style={{ borderColor: globalBorder, backgroundColor: 'rgba(255,255,255,0.05)' }}>
-                    <div className="w-32 h-32 bg-zinc-950 border border-white/20 flex-shrink-0 overflow-hidden relative cursor-pointer rounded-md" onClick={() => setZoomedItem(item)}>
-                      {item.items && item.items.length > 0 ? (<CanvasPreview items={item.items} customScale={0.15} canvasHeight={item.canvasHeight || 700} />) : (<img src={item.image} className="w-full h-full object-cover" />)}
+                  <div
+                    key={item.id}
+                    className={`border p-6 flex gap-6 rounded-lg relative group ${item.items && item.items.length > 0 ? 'cursor-pointer' : ''}`}
+                    style={{ borderColor: globalBorder, backgroundColor: 'rgba(255,255,255,0.05)' }}
+                    onClick={() => { if (item.items && item.items.length > 0) setZoomedItem(item); }}
+                  >
+                    <div
+                      className="w-32 h-32 border border-white/20 flex-shrink-0 overflow-hidden relative rounded-md"
+                      style={{
+                        backgroundColor: item.items && item.items.length > 0 ? canvasBgColor : 'transparent',
+                        backgroundImage: item.items && item.items.length > 0 && canvasBgImage ? `url(${canvasBgImage})` : undefined,
+                        backgroundSize: canvasBgImage ? 'cover' : undefined,
+                        backgroundPosition: canvasBgImage ? 'center' : undefined
+                      }}
+                      onClick={(e) => { e.stopPropagation(); if (item.items && item.items.length > 0) setZoomedItem(item); }}
+                    >
+                      {item.items && item.items.length > 0 ? (<CanvasPreview items={item.items} customScale={0.15} canvasHeight={item.canvasHeight || 700} showGrid={false} backgroundColor={canvasBgColor} backgroundImage={canvasBgImage} />) : (<img src={item.image} className="w-full h-full object-cover" />)}
                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><ZoomIn size={24} className="text-white" /></div>
                     </div>
                     <div className="flex-1">
@@ -78,7 +94,7 @@ export const Cart = () => {
                       <p className="text-sm mb-2 opacity-60">{item.items ? `${item.items.length}개 부자재 조합` : '단품 상품'}</p>
                       <div className="text-cyan-400 font-bold text-xl">₩{item.price.toLocaleString()}</div>
                     </div>
-                    <button onClick={() => removeFromCart(item.id)} className="opacity-50 hover:opacity-100 hover:text-red-400 absolute top-6 right-6 transition-all"><Trash2 size={20} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); removeFromCart(item.id); }} className="opacity-50 hover:opacity-100 hover:text-red-400 absolute top-6 right-6 transition-all"><Trash2 size={20} /></button>
                   </div>
                 ))}
               </div>
@@ -101,11 +117,43 @@ export const Cart = () => {
       {zoomedItem && (
         <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setZoomedItem(null)}>
           <button onClick={() => setZoomedItem(null)} className="absolute top-6 right-6 text-white hover:text-cyan-400 z-10 transition-colors"><X size={32} /></button>
-          <div className="relative bg-[#09090b] border border-zinc-800 rounded-xl shadow-2xl overflow-y-auto max-h-[85vh] custom-scrollbar p-1" onClick={(e) => e.stopPropagation()}>
-            <div style={{ width: '450px', height: `${zoomedItem.canvasHeight || 700}px` }} className="mx-auto bg-black">
-              {zoomedItem.items && zoomedItem.items.length > 0 ? (<CanvasPreview items={zoomedItem.items} isThumbnail={false} canvasHeight={zoomedItem.canvasHeight || 700} />) : (<img src={zoomedItem.image} className="w-full h-full object-contain" />)}
+          {zoomedItem.items && zoomedItem.items.length > 0 ? (
+            <div className="bg-gray-900 border-2 border-white/20 rounded-lg overflow-hidden w-full max-w-6xl max-h-[95vh] flex flex-col md:flex-row" onClick={(e) => e.stopPropagation()}>
+              <div className="flex-1 flex items-center justify-center relative min-h-[500px]" style={{ backgroundColor: canvasBgColor }}>
+                <CanvasPreview items={zoomedItem.items} isThumbnail={false} canvasHeight={zoomedItem.canvasHeight || 700} showGrid={false} backgroundColor={canvasBgColor} backgroundImage={canvasBgImage} />
+              </div>
+              <div className="w-full md:w-[400px] p-8 flex flex-col bg-gray-900 overflow-y-auto">
+                <div className="flex justify-between items-start mb-6">
+                  <h3 className="text-2xl font-black text-white">{zoomedItem.name}</h3>
+                  <button onClick={() => setZoomedItem(null)}><X className="text-gray-400 hover:text-white"/></button>
+                </div>
+                <div className="flex-1 mb-6">
+                  <h4 className="text-sm font-bold text-gray-500 mb-3">Components</h4>
+                  <div className="space-y-2">
+                    {zoomedItem.items.map((item:any, i:number) => (
+                      <div key={i} className="flex items-center gap-3 bg-black/50 p-2 rounded">
+                        <img src={item.image} className="w-10 h-10 object-contain"/>
+                        <span className="text-white text-sm font-bold flex-1 truncate">{item.name}</span>
+                        <span className="text-[var(--accent-color)] font-bold">₩{(item.price||0).toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-gray-700">
+                  <div className="flex justify-between items-end mb-4">
+                    <span className="text-gray-400 font-bold">TOTAL</span>
+                    <span className="text-3xl font-black text-[var(--accent-color)]">₩{zoomedItem.items.reduce((sum:number, it:any) => sum + (it.price || 0), 0).toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="relative bg-[#09090b] border border-zinc-800 rounded-xl shadow-2xl overflow-y-auto max-h-[85vh] custom-scrollbar p-1" onClick={(e) => e.stopPropagation()}>
+              <div style={{ width: '450px', height: `${zoomedItem.canvasHeight || 700}px` }} className="mx-auto" >
+                <img src={zoomedItem.image} className="w-full h-full object-contain" />
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

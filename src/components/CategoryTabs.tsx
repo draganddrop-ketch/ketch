@@ -17,6 +17,29 @@ export const CategoryTabs = ({ activeCategory, onCategoryChange }: CategoryTabsP
   const navColor = settings?.nav_text_color || '#FFFFFF'; // 메뉴 텍스트 컬러
   const accentColor = settings?.product_accent_color || settings?.accent_color || '#34d399';
 
+  const toRgba = (color: string, alpha: number) => {
+    const c = (color || '').trim();
+    if (c.startsWith('#')) {
+      const hex = c.replace('#', '');
+      const full = hex.length === 3 ? hex.split('').map(ch => ch + ch).join('') : hex;
+      if (full.length === 6) {
+        const r = parseInt(full.slice(0, 2), 16);
+        const g = parseInt(full.slice(2, 4), 16);
+        const b = parseInt(full.slice(4, 6), 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      }
+    }
+    if (c.startsWith('rgb')) {
+      const nums = c.match(/[\d.]+/g);
+      if (nums && nums.length >= 3) {
+        const [r, g, b] = nums;
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      }
+    }
+    return `rgba(0, 0, 0, ${alpha})`;
+  };
+  const tabBg = toRgba(globalBg, 0.5);
+
   useEffect(() => { fetchCategories(); }, []);
 
   const fetchCategories = async () => {
@@ -31,8 +54,8 @@ export const CategoryTabs = ({ activeCategory, onCategoryChange }: CategoryTabsP
   return (
     // ✅ sticky 제거하여 스크롤 시 위로 사라짐
     // ✅ border-b 추가하여 하단 선 유지
-    <div className="w-full border-b border-white/10 transition-colors duration-300" style={{ backgroundColor: globalBg }}>
-      <div className="max-w-[1300px] mx-auto px-6 relative group">
+    <div className="w-full border-b border-white/10 transition-colors duration-300" style={{ backgroundColor: tabBg }}>
+      <div className="w-full px-4 md:px-6 relative group">
         <div className="flex items-center gap-8 overflow-x-auto no-scrollbar pr-8">
           {filteredCategories.map((category) => {
             const isActive = (activeCategory || '').toLowerCase().trim() === (category.slug || '').toLowerCase().trim();
@@ -40,7 +63,7 @@ export const CategoryTabs = ({ activeCategory, onCategoryChange }: CategoryTabsP
               <button
                 key={category.id}
                 onClick={() => onCategoryChange(category.slug)}
-                className="py-4 text-sm font-medium uppercase tracking-widest whitespace-nowrap transition-colors relative"
+                className="py-2 md:py-4 text-sm font-medium uppercase tracking-widest whitespace-nowrap transition-colors relative"
                 style={{ 
                   color: isActive ? accentColor : navColor // ✅ 설정된 폰트 컬러 적용
                 }}
