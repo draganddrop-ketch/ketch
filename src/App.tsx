@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { Home } from './pages/Home';
 import { ProductDetail } from './pages/ProductDetail';
 import { Admin } from './pages/Admin';
@@ -12,41 +13,75 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { SectionProvider } from './context/SectionContext';
 import { CanvasProvider } from './context/CanvasContext';
+import { supabase } from './lib/supabase';
 
-// ★ 강화된 관리자 보안 문지기
+const SUPER_ADMIN_EMAILS = ['jeongyong01@naver.com'].map((email) => email.toLowerCase().trim());
+
 const AdminRoute = ({ children }: { children: JSX.Element }) => {
   const { user, loading } = useAuth();
-  
-  // 🚨 [필수 수정] 여기에 실제 관리자 이메일을 적어주세요! 🚨
-  // (대소문자 구분 없이 비교하겠지만, 가급적 정확히 적어주세요)
-  const ADMIN_EMAIL = 'jeongyong01@naver.com'; 
+  const [checkingRole, setCheckingRole] = useState(false);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
-  if (loading) {
-    // 로딩 중일 때는 아무것도 안 보여줌 (보안 구멍 막기)
-    return <div className="min-h-screen bg-black flex items-center justify-center text-white">Checking permission...</div>; 
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkAdminRole = async () => {
+      if (!user) {
+        if (isMounted) {
+          setIsAdmin(null);
+          setCheckingRole(false);
+        }
+        return;
+      }
+
+      const userEmail = user.email?.toLowerCase().trim() || '';
+      if (SUPER_ADMIN_EMAILS.includes(userEmail)) {
+        if (isMounted) {
+          setIsAdmin(true);
+          setCheckingRole(false);
+        }
+        return;
+      }
+
+      setCheckingRole(true);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role, email')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (!isMounted) return;
+      if (error) {
+        console.error('Failed to check admin role:', error);
+        setIsAdmin(SUPER_ADMIN_EMAILS.includes(userEmail));
+      } else {
+        const profileEmail = data?.email?.toLowerCase().trim() || '';
+        const hasAdminRole = (data?.role || 'user') === 'admin';
+        const isSuperAdminEmail = SUPER_ADMIN_EMAILS.includes(userEmail) || SUPER_ADMIN_EMAILS.includes(profileEmail);
+        setIsAdmin(hasAdminRole || isSuperAdminEmail);
+      }
+      setCheckingRole(false);
+    };
+
+    checkAdminRole();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+  if (loading || (user && (checkingRole || isAdmin === null))) {
+    return <div className="min-h-screen bg-black flex items-center justify-center text-white">Checking permission...</div>;
   }
 
-  // 디버깅용 로그 (범인 색출용)
-  console.log("🕵️‍♂️ 보안 검사 중...");
-  console.log(" - 현재 접속자:", user ? user.email : "비로그인 손님");
-  console.log(" - 허용된 관리자:", ADMIN_EMAIL);
-
-  // 1. 로그인을 아예 안 했다면? -> 관리자 로그인 페이지로 보냄
   if (!user) {
-    console.log("⛔ 결과: 로그인 안 함 -> 쫓아냄");
     return <Navigate to="/admin/login" replace />;
   }
 
-  // 2. 로그인은 했는데, 이메일이 다르다면? -> 메인 홈페이지로 쫓아냄
-  // (toLowerCase()를 써서 대문자/소문자 차이로 뚫리는 문제 해결)
-  if (user.email?.toLowerCase().trim() !== ADMIN_EMAIL.toLowerCase().trim()) {
-    console.log("⛔ 결과: 이메일 불일치 (일반 고객) -> 홈으로 쫓아냄");
-    alert("관리자만 접근할 수 있는 페이지입니다."); // 경고창 띄우기
+  if (isAdmin === false) {
     return <Navigate to="/" replace />;
   }
 
-  // 3. 통과!
-  console.log("✅ 결과: 관리자 확인됨! 어서오세요.");
   return children;
 };
 
