@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Search, Plus, Edit2, Trash2, X,
   LayoutGrid, Settings, Package, Image as ImageIcon,
@@ -101,9 +101,11 @@ export const Admin = () => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<KeyringItem | null>(null);
+  const [isDeletingProducts, setIsDeletingProducts] = useState(false);
   
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
 
@@ -121,6 +123,7 @@ export const Admin = () => {
   const [isCropperOpen, setIsCropperOpen] = useState(false);
   const [cropTarget, setCropTarget] = useState<CropTarget | null>(null);
   const [cropImageSrc, setCropImageSrc] = useState('');
+  const selectAllRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) navigate('/admin/login');
@@ -133,6 +136,18 @@ export const Admin = () => {
   
   const getCategoryCount = (slug: string) => { if (slug === 'all') return products.length; return products.filter(p => { const catIds = p.category_ids || [p.category]; return catIds.includes(slug); }).length; };
   const filteredProducts = products.filter(product => { let matchCategory = true; if (activeCategory !== 'all') { const catIds = product.category_ids || [product.category]; matchCategory = catIds.includes(activeCategory); } const matchSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()); return matchCategory && matchSearch; });
+  const visibleProductIds = filteredProducts.map(product => product.id);
+  const selectedVisibleCount = visibleProductIds.filter(id => selectedProductIds.includes(id)).length;
+  const isAllVisibleSelected = visibleProductIds.length > 0 && selectedVisibleCount === visibleProductIds.length;
+
+  useEffect(() => {
+    setSelectedProductIds(prev => prev.filter(id => products.some(product => product.id === id)));
+  }, [products]);
+
+  useEffect(() => {
+    if (!selectAllRef.current) return;
+    selectAllRef.current.indeterminate = selectedVisibleCount > 0 && !isAllVisibleSelected;
+  }, [selectedVisibleCount, isAllVisibleSelected]);
   
   const openAddModal = () => { 
     setEditingProduct(null); 
@@ -141,6 +156,43 @@ export const Admin = () => {
     setMainImagePreviewUrl(''); 
     setGalleryItems([]); 
     setIsProductModalOpen(true); 
+  };
+
+  const toggleProductSelection = (productId: string) => {
+    setSelectedProductIds(prev => {
+      if (prev.includes(productId)) return prev.filter(id => id !== productId);
+      return [...prev, productId];
+    });
+  };
+
+  const toggleSelectAllVisibleProducts = () => {
+    if (visibleProductIds.length === 0) return;
+    setSelectedProductIds(prev => {
+      const allVisibleSelected = visibleProductIds.every(id => prev.includes(id));
+      if (allVisibleSelected) return prev.filter(id => !visibleProductIds.includes(id));
+      return Array.from(new Set([...prev, ...visibleProductIds]));
+    });
+  };
+
+  const handleDeleteSelectedProducts = async () => {
+    if (selectedProductIds.length === 0) return;
+    if (!confirm(`선택한 상품 ${selectedProductIds.length}개를 삭제하시겠습니까?`)) return;
+
+    setIsDeletingProducts(true);
+    try {
+      const { error } = await supabase.from('products').delete().in('id', selectedProductIds);
+      if (error) throw error;
+
+      const deletedIds = [...selectedProductIds];
+      setSelectedProductIds(prev => prev.filter(id => !deletedIds.includes(id)));
+      await fetchProducts();
+      alert('선택한 상품이 삭제되었습니다.');
+    } catch (error: any) {
+      console.error('선택 삭제 실패:', error);
+      alert(`선택 삭제 중 오류가 발생했습니다.\n${error.message}`);
+    } finally {
+      setIsDeletingProducts(false);
+    }
   };
   
   const openEditModal = (product: any) => { 
@@ -397,11 +449,89 @@ export const Admin = () => {
               <div className="p-4 border-t border-gray-200"><button onClick={() => setIsCategoryManagerOpen(true)} className="w-full py-2 text-xs border border-gray-300 rounded bg-white hover:bg-gray-50 text-gray-600 font-medium flex items-center justify-center gap-1"><Settings size={14}/> 카테고리 순서/설정 관리</button></div>
             </div>
             <div className="flex-1 flex flex-col h-full overflow-hidden bg-white">
-              <div className="p-6 border-b border-gray-100 flex justify-between items-center"><h1 className="text-xl font-bold text-gray-800">{activeCategory === 'all' ? '전체 상품' : categories.find(c => c.slug === activeCategory)?.name}</h1><div className="flex gap-3"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="text" placeholder="상품명 검색..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm w-64 focus:outline-none focus:border-purple-500" /></div><button onClick={openAddModal} className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 flex items-center gap-2 shadow-sm"><Plus size={16} /> 상품 추가하기</button></div></div>
+              <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+                <h1 className="text-xl font-bold text-gray-800">{activeCategory === 'all' ? '전체 상품' : categories.find(c => c.slug === activeCategory)?.name}</h1>
+                <div className="flex gap-3 items-center">
+                  {selectedProductIds.length > 0 && (
+                    <span className="text-xs text-gray-500">선택 {selectedProductIds.length}개</span>
+                  )}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                    <input
+                      type="text"
+                      placeholder="상품명 검색..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm w-64 focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+                  <button
+                    onClick={handleDeleteSelectedProducts}
+                    disabled={selectedProductIds.length === 0 || isDeletingProducts}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+                  >
+                    <Trash2 size={16} />
+                    {isDeletingProducts ? '삭제 중...' : '선택 삭제'}
+                  </button>
+                  <button onClick={openAddModal} className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 flex items-center gap-2 shadow-sm"><Plus size={16} /> 상품 추가하기</button>
+                </div>
+              </div>
               <div className="flex-1 overflow-auto p-6">
                 <table className="w-full text-left border-collapse">
-                  <thead><tr className="border-b border-gray-100 text-gray-400 text-xs uppercase"><th className="py-3 px-2 w-10"><input type="checkbox" /></th><th className="py-3 px-2">상품 정보</th><th className="py-3 px-2 text-right">가격</th><th className="py-3 px-2 text-center">수량</th><th className="py-3 px-2 text-center">상태</th><th className="py-3 px-2 text-right">관리</th></tr></thead>
-                  <tbody>{filteredProducts.map((product) => (<tr key={product.id} className="border-b border-gray-50 hover:bg-gray-50 group"><td className="py-4 px-2"><input type="checkbox" /></td><td className="py-4 px-2"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded bg-gray-100 overflow-hidden border border-gray-200 flex-shrink-0">{product.image ? <img src={product.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon size={16} /></div>}</div><div><div className="font-medium text-gray-700 text-sm">{product.name}</div><div className="text-xs text-gray-400">{product.sub_category || product.category}</div></div></div></td><td className="py-4 px-2 text-right text-sm font-medium">{product.sale_price ? (<div><span className="text-red-500 font-bold">₩{product.sale_price.toLocaleString()}</span><div className="text-xs text-gray-400 line-through">₩{product.price.toLocaleString()}</div></div>) : (<span>₩{product.price.toLocaleString()}</span>)}</td><td className="py-4 px-2 text-center text-sm text-gray-500">{product.stock_quantity === 0 ? <span className="text-red-500">품절</span> : `${product.stock_quantity}개`}</td><td className="py-4 px-2 text-center"><span className={`text-xs px-2 py-1 rounded-full ${product.status === 'active' ? 'text-blue-600 bg-blue-50' : 'text-gray-500 bg-gray-100'}`}>{product.status === 'active' ? '판매 중' : '숨김'}</span></td><td className="py-4 px-2 text-right"><button onClick={() => openEditModal(product)} className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs rounded hover:bg-gray-200 transition-colors">편집</button></td></tr>))}</tbody>
+                  <thead>
+                    <tr className="border-b border-gray-100 text-gray-400 text-xs uppercase">
+                      <th className="py-3 px-2 w-10">
+                        <input
+                          ref={selectAllRef}
+                          type="checkbox"
+                          checked={isAllVisibleSelected}
+                          onChange={toggleSelectAllVisibleProducts}
+                        />
+                      </th>
+                      <th className="py-3 px-2">상품 정보</th>
+                      <th className="py-3 px-2 text-right">가격</th>
+                      <th className="py-3 px-2 text-center">수량</th>
+                      <th className="py-3 px-2 text-center">상태</th>
+                      <th className="py-3 px-2 text-right">관리</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredProducts.map((product) => (
+                      <tr key={product.id} className="border-b border-gray-50 hover:bg-gray-50 group">
+                        <td className="py-4 px-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedProductIds.includes(product.id)}
+                            onChange={() => toggleProductSelection(product.id)}
+                          />
+                        </td>
+                        <td className="py-4 px-2">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded bg-gray-100 overflow-hidden border border-gray-200 flex-shrink-0">
+                              {product.image ? <img src={product.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon size={16} /></div>}
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-700 text-sm">{product.name}</div>
+                              <div className="text-xs text-gray-400">{product.sub_category || product.category}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-4 px-2 text-right text-sm font-medium">
+                          {product.sale_price ? (
+                            <div>
+                              <span className="text-red-500 font-bold">₩{product.sale_price.toLocaleString()}</span>
+                              <div className="text-xs text-gray-400 line-through">₩{product.price.toLocaleString()}</div>
+                            </div>
+                          ) : (
+                            <span>₩{product.price.toLocaleString()}</span>
+                          )}
+                        </td>
+                        <td className="py-4 px-2 text-center text-sm text-gray-500">{product.stock_quantity === 0 ? <span className="text-red-500">품절</span> : `${product.stock_quantity}개`}</td>
+                        <td className="py-4 px-2 text-center"><span className={`text-xs px-2 py-1 rounded-full ${product.status === 'active' ? 'text-blue-600 bg-blue-50' : 'text-gray-500 bg-gray-100'}`}>{product.status === 'active' ? '판매 중' : '숨김'}</span></td>
+                        <td className="py-4 px-2 text-right"><button onClick={() => openEditModal(product)} className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs rounded hover:bg-gray-200 transition-colors">편집</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
                 </table>
               </div>
             </div>

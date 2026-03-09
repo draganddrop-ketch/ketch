@@ -201,6 +201,8 @@ export const Home = () => {
     } else { setSelectedCategory(category === 'all' ? null : category); }
   };
 
+  const footerContent = (settings?.footer_content || '').trim();
+
   return (
     <div className="min-h-screen pb-20 md:pb-0" style={{ backgroundColor: globalBg, color: globalText }}>
       
@@ -310,6 +312,16 @@ export const Home = () => {
             </div>
           )}
         </div>
+      )}
+
+      {currentSection === 'SHOP' && (
+        <footer className="mt-20 border-t" style={borderStyle}>
+          <div className="px-4 md:px-6 py-12">
+            <div className="max-w-6xl mx-auto min-h-[84px] text-xs md:text-sm leading-relaxed whitespace-pre-line opacity-80" style={{ color: globalText }}>
+              {footerContent}
+            </div>
+          </div>
+        </footer>
       )}
 
       {currentSection === 'BUILDER' && (

@@ -23,6 +23,10 @@ export const SiteSettingsForm = () => {
     logo_width: '120px',
     favicon_url: '',
     site_title: 'My Store',
+    footer_content: '',
+    share_title: '',
+    share_description: '',
+    share_image_url: '',
     banner_height: 400,
     nav_text_color: '#FFFFFF',
   });
@@ -31,6 +35,7 @@ export const SiteSettingsForm = () => {
   const [message, setMessage] = useState('');
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
+  const [uploadingShareImage, setUploadingShareImage] = useState(false);
 
   useEffect(() => {
     if (settings) {
@@ -51,6 +56,10 @@ export const SiteSettingsForm = () => {
         logo_width: settings.logo_width || '120px',
         favicon_url: settings.favicon_url || '',
         site_title: settings.site_title || 'My Store',
+        footer_content: settings.footer_content || '',
+        share_title: settings.share_title || '',
+        share_description: settings.share_description || '',
+        share_image_url: settings.share_image_url || '',
         banner_height: settings.banner_height || 400,
         nav_text_color: settings.nav_text_color || '#FFFFFF',
       });
@@ -87,7 +96,25 @@ export const SiteSettingsForm = () => {
     try { setUploadingFavicon(true); const url = await uploadImage(file); if (url) { setFormData(prev => ({ ...prev, favicon_url: url })); setMessage('Favicon uploaded'); } else setMessage('Failed'); } catch (error) { console.error(error); setMessage('Failed'); } finally { setUploadingFavicon(false); }
   };
 
+  const handleShareImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    try {
+      setUploadingShareImage(true);
+      const url = await uploadImage(file);
+      if (url) {
+        setFormData(prev => ({ ...prev, share_image_url: url }));
+        setMessage('Share image uploaded');
+      } else setMessage('Failed');
+    } catch (error) {
+      console.error(error);
+      setMessage('Failed');
+    } finally {
+      setUploadingShareImage(false);
+    }
+  };
+
   const handleRemoveLogo = () => { setFormData(prev => ({ ...prev, logo_url: '' })); setMessage('Logo removed.'); };
+  const handleRemoveShareImage = () => { setFormData(prev => ({ ...prev, share_image_url: '' })); setMessage('Share image removed.'); };
   const handleLogoWidthChange = (e: React.ChangeEvent<HTMLInputElement>) => { let value = e.target.value.trim(); if (value && !value.endsWith('px')) { const numericValue = value.replace(/\D/g, ''); if (numericValue) value = `${numericValue}px`; } setFormData(prev => ({ ...prev, logo_width: value })); };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -112,6 +139,10 @@ export const SiteSettingsForm = () => {
           logo_width: formData.logo_width,
           favicon_url: formData.favicon_url,
           site_title: formData.site_title,
+          footer_content: formData.footer_content,
+          share_title: formData.share_title,
+          share_description: formData.share_description,
+          share_image_url: formData.share_image_url,
           banner_height: formData.banner_height,
           nav_text_color: formData.nav_text_color,
           updated_at: new Date().toISOString(),
@@ -148,6 +179,58 @@ export const SiteSettingsForm = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Favicon</label>
               <div className="flex gap-3 items-start"><label className="px-4 py-2 bg-gray-100 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-200 flex items-center gap-2"><Upload size={16} /> Upload Favicon<input type="file" accept="image/*" onChange={handleFaviconUpload} className="hidden" /></label>{formData.favicon_url && <div className="flex-1"><img src={formData.favicon_url} className="h-8 w-8 object-contain border border-gray-200 rounded" /></div>}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Announcement Bar Section */}
+        <div className="border-b border-gray-300 pb-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">SEO & Share Preview</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Footer Content</label>
+              <textarea
+                name="footer_content"
+                value={formData.footer_content}
+                onChange={handleInputChange}
+                rows={4}
+                placeholder="회사명, 사업자 정보, 문의처 등을 입력하세요."
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none resize-y"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Shared Link Title</label>
+              <input type="text" name="share_title" value={formData.share_title} onChange={handleInputChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none" placeholder="카카오톡/소셜 공유 제목" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Shared Link Description</label>
+              <textarea
+                name="share_description"
+                value={formData.share_description}
+                onChange={handleInputChange}
+                rows={3}
+                placeholder="카카오톡/소셜 공유 설명"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none resize-y"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Shared Link Image</label>
+              <div className="flex gap-3 items-start">
+                <label className="px-4 py-2 bg-gray-100 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-200 flex items-center gap-2">
+                  <Upload size={16} /> {uploadingShareImage ? 'Uploading...' : 'Upload Image'}
+                  <input type="file" accept="image/*" onChange={handleShareImageUpload} className="hidden" />
+                </label>
+                {formData.share_image_url && (
+                  <>
+                    <button type="button" onClick={handleRemoveShareImage} className="px-4 py-2 bg-red-100 text-red-700 border border-red-300 rounded-lg flex items-center gap-2">
+                      <X size={16} /> Remove
+                    </button>
+                    <div className="flex-1">
+                      <img src={formData.share_image_url} className="h-16 object-cover border border-gray-200 rounded" />
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>

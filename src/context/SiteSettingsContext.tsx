@@ -5,6 +5,10 @@ interface SiteSettings {
   id: number;
   brand_name: string;
   site_title: string | null;
+  footer_content: string | null;
+  share_title: string | null;
+  share_description: string | null;
+  share_image_url: string | null;
   banner_height: number;
   shop_banner_images: string[] | null;
   builder_banner_images: string[] | null;
@@ -99,6 +103,35 @@ export const SiteSettingsProvider = ({ children }: { children: ReactNode }) => {
         document.head.appendChild(faviconLink);
       }
       faviconLink.href = faviconHref || '/vite.svg';
+
+      const fallbackTitle = settings.brand_name || 'My Store';
+      const siteTitle = settings.site_title || fallbackTitle;
+      const shareTitle = settings.share_title || siteTitle;
+      const shareDescription = settings.share_description || settings.announcement_text || fallbackTitle;
+      const shareImage = settings.share_image_url || settings.logo_url || `${window.location.origin}/vite.svg`;
+
+      document.title = siteTitle;
+
+      const upsertMeta = (attr: 'name' | 'property', key: string, content: string) => {
+        let tag = document.head.querySelector(`meta[${attr}="${key}"]`) as HTMLMetaElement | null;
+        if (!tag) {
+          tag = document.createElement('meta');
+          tag.setAttribute(attr, key);
+          document.head.appendChild(tag);
+        }
+        tag.setAttribute('content', content);
+      };
+
+      upsertMeta('name', 'description', shareDescription);
+      upsertMeta('property', 'og:type', 'website');
+      upsertMeta('property', 'og:title', shareTitle);
+      upsertMeta('property', 'og:description', shareDescription);
+      upsertMeta('property', 'og:image', shareImage);
+      upsertMeta('property', 'og:url', window.location.href);
+      upsertMeta('name', 'twitter:card', 'summary_large_image');
+      upsertMeta('name', 'twitter:title', shareTitle);
+      upsertMeta('name', 'twitter:description', shareDescription);
+      upsertMeta('name', 'twitter:image', shareImage);
     }
   }, [settings]);
 
