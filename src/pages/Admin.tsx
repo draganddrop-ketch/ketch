@@ -4,7 +4,7 @@ import {
   LayoutGrid, Settings, Package, Image as ImageIcon,
   Home, ShoppingCart, Users, MessageSquare, 
   ExternalLink, Palette, LogOut, ChevronUp, ChevronDown, Tag, Save,
-  Truck, ClipboardList, RefreshCw 
+  Truck, ClipboardList, RefreshCw, Copy
 } from 'lucide-react';
 
 import { supabase } from '../lib/supabase';
@@ -106,6 +106,7 @@ export const Admin = () => {
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<KeyringItem | null>(null);
   const [isDeletingProducts, setIsDeletingProducts] = useState(false);
+  const [isDuplicatingProducts, setIsDuplicatingProducts] = useState(false);
   
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
 
@@ -192,6 +193,40 @@ export const Admin = () => {
       alert(`선택 삭제 중 오류가 발생했습니다.\n${error.message}`);
     } finally {
       setIsDeletingProducts(false);
+    }
+  };
+
+  const handleDuplicateSelectedProducts = async () => {
+    if (selectedProductIds.length === 0) return;
+
+    const targetProducts = products.filter(product => selectedProductIds.includes(product.id));
+    if (targetProducts.length === 0) {
+      alert('복사할 상품을 찾을 수 없습니다.');
+      return;
+    }
+    if (!confirm(`선택한 상품 ${targetProducts.length}개를 복사하시겠습니까?`)) return;
+
+    setIsDuplicatingProducts(true);
+    try {
+      const duplicatePayloads = targetProducts.map((product) => {
+        const { id, created_at, updated_at, image, ...rest } = product as any;
+        return {
+          ...rest,
+          name: `${product.name} (복사본)`,
+        };
+      });
+
+      const { error } = await supabase.from('products').insert(duplicatePayloads);
+      if (error) throw error;
+
+      await fetchProducts();
+      setSelectedProductIds([]);
+      alert(`${duplicatePayloads.length}개 상품이 복사되었습니다.`);
+    } catch (error: any) {
+      console.error('선택 복사 실패:', error);
+      alert(`선택 복사 중 오류가 발생했습니다.\n${error.message}`);
+    } finally {
+      setIsDuplicatingProducts(false);
     }
   };
   
@@ -466,8 +501,16 @@ export const Admin = () => {
                     />
                   </div>
                   <button
+                    onClick={handleDuplicateSelectedProducts}
+                    disabled={selectedProductIds.length === 0 || isDuplicatingProducts || isDeletingProducts}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+                  >
+                    <Copy size={16} />
+                    {isDuplicatingProducts ? '복사 중...' : '선택 복사'}
+                  </button>
+                  <button
                     onClick={handleDeleteSelectedProducts}
-                    disabled={selectedProductIds.length === 0 || isDeletingProducts}
+                    disabled={selectedProductIds.length === 0 || isDeletingProducts || isDuplicatingProducts}
                     className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
                   >
                     <Trash2 size={16} />
