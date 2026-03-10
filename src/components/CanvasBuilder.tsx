@@ -145,7 +145,7 @@ export const CanvasBuilder = forwardRef<CanvasBuilderRef, CanvasBuilderProps>(({
   const handleRotationChange = (id: string, rot: number) => { const newItems = canvasItems.map(i => i.canvasId === id ? { ...i, rotation: rot } : i); setCanvasItems(newItems); if (onItemsChange) onItemsChange(newItems); };
   const handleRemove = (id: string) => { const newItems = canvasItems.filter(i => i.canvasId !== id); setCanvasItems(newItems); if (onItemsChange) onItemsChange(newItems); if (activeSelectedId === id) handleSelect(null); };
   const handleResetCanvas = () => { if(confirm('Clear canvas?')) { if(clearCanvas) clearCanvas(); else setCanvasItems([]); handleSelect(null); if(onItemsChange) onItemsChange([]); } };
-  const getImageUrl = (item: any) => item.image || item.image_url || '';
+  const getImageUrl = (item: any) => item.dropzone_image_url || item.image || item.image_url || '';
 
   const calculateDisplayWidth = (item: any) => {
     if (item.real_width_cm && item.object_px_width && item.image_width) {

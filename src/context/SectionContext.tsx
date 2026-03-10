@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 
 type Section = 'SHOP' | 'BUILDER';
 
@@ -10,8 +10,16 @@ interface SectionContextType {
 const SectionContext = createContext<SectionContextType | undefined>(undefined);
 
 export const SectionProvider = ({ children }: { children: ReactNode }) => {
-  // 기본값을 'SHOP'으로 설정 (원하시면 'BUILDER'로 변경 가능)
-  const [currentSection, setCurrentSection] = useState<Section>('SHOP');
+  const [currentSection, setCurrentSection] = useState<Section>(() => {
+    if (typeof window === 'undefined') return 'SHOP';
+    const savedSection = window.localStorage.getItem('current_section');
+    return savedSection === 'BUILDER' ? 'BUILDER' : 'SHOP';
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('current_section', currentSection);
+  }, [currentSection]);
 
   return (
     <SectionContext.Provider

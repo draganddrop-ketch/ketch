@@ -54,7 +54,7 @@ export const ProductDetailView = ({ product, onBack }: ProductDetailViewProps) =
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* 이미지 섹션 (수정됨: 잘림 방지) */}
           <div className="space-y-4">
-            <div className="aspect-square bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800 flex items-center justify-center">
+            <div className="aspect-square bg-white rounded-lg overflow-hidden border border-gray-200 flex items-center justify-center">
               <img
                 src={activeImage}
                 alt={product.name}
@@ -66,8 +66,8 @@ export const ProductDetailView = ({ product, onBack }: ProductDetailViewProps) =
               <div className="grid grid-cols-4 gap-2">
                 <button
                   onClick={() => setActiveImage(product.image)}
-                  className={`aspect-square rounded-lg overflow-hidden border bg-zinc-900 ${
-                    activeImage === product.image ? 'border-white' : 'border-zinc-800'
+                  className={`aspect-square rounded-lg overflow-hidden border bg-white ${
+                    activeImage === product.image ? 'border-gray-900' : 'border-gray-200'
                   }`}
                 >
                   <img src={product.image} alt={product.name} className="w-full h-full object-contain" />
@@ -76,8 +76,8 @@ export const ProductDetailView = ({ product, onBack }: ProductDetailViewProps) =
                   <button
                     key={index}
                     onClick={() => setActiveImage(img)}
-                    className={`aspect-square rounded-lg overflow-hidden border bg-zinc-900 ${
-                      activeImage === img ? 'border-white' : 'border-zinc-800'
+                    className={`aspect-square rounded-lg overflow-hidden border bg-white ${
+                      activeImage === img ? 'border-gray-900' : 'border-gray-200'
                     }`}
                   >
                     <img src={img} alt={`${product.name} ${index + 1}`} className="w-full h-full object-contain" />

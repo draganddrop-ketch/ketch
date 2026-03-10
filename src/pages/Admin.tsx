@@ -24,7 +24,7 @@ interface Category { id: string; name: string; slug: string; display_order: numb
 interface Profile { id: string; email: string; role: string; created_at: string; }
 type TabType = 'dashboard' | 'orders' | 'products' | 'customers' | 'reviews' | 'design' | 'settings' | 'shipping';
 type GalleryItem = { id: string; previewUrl: string; file?: File; isRemote: boolean };
-type CropTarget = { type: 'main' } | { type: 'gallery'; id: string };
+type CropTarget = { type: 'main' } | { type: 'dropzone' } | { type: 'gallery'; id: string };
 
 /**
  * 🛠️ 이미지 분석 함수
@@ -115,6 +115,8 @@ export const Admin = () => {
   });
   const [mainImageFile, setMainImageFile] = useState<File | null>(null);
   const [mainImagePreviewUrl, setMainImagePreviewUrl] = useState<string>('');
+  const [dropzoneImageFile, setDropzoneImageFile] = useState<File | null>(null);
+  const [dropzoneImagePreviewUrl, setDropzoneImagePreviewUrl] = useState<string>('');
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
   const [uploading, setUploading] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -132,7 +134,23 @@ export const Admin = () => {
   }, [user, authLoading]);
 
   const fetchCategories = async () => { const { data } = await supabase.from('categories').select('*').order('display_order'); if (data) setCategories(data); };
-  const fetchProducts = async () => { const { data } = await supabase.from('products').select('*').order('created_at', { ascending: false }); if (data) { const formatted = data.map(item => ({ ...item, image: item.image_url, category_ids: item.category_ids || (item.category ? [item.category] : []), sub_category: item.sub_category || '' })); setProducts(formatted as any); } };
+  const fetchProducts = async () => {
+    const { data } = await supabase.from('products').select('*').order('created_at', { ascending: false });
+    if (data) {
+      const formatted = data.map((item) => {
+        const thumbnailImage = item.image_url || item.image || '';
+        return {
+          ...item,
+          image: thumbnailImage,
+          image_url: thumbnailImage,
+          dropzone_image_url: item.dropzone_image_url || thumbnailImage,
+          category_ids: item.category_ids || (item.category ? [item.category] : []),
+          sub_category: item.sub_category || ''
+        };
+      });
+      setProducts(formatted as any);
+    }
+  };
   const fetchProfiles = async () => { const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false }); if (data) setProfiles(data); };
   
   const getCategoryCount = (slug: string) => { if (slug === 'all') return products.length; return products.filter(p => { const catIds = p.category_ids || [p.category]; return catIds.includes(slug); }).length; };
@@ -155,6 +173,8 @@ export const Admin = () => {
     setProductFormData({ name: '', section: 'SHOP', categories: [], sub_category: '', price: '', sale_price: '', stock_quantity: '100', status: 'active', description: '', is_best: false, is_new: false, real_width_cm: '', object_px_width: 0, image_width: 0 }); 
     setMainImageFile(null);
     setMainImagePreviewUrl(''); 
+    setDropzoneImageFile(null);
+    setDropzoneImagePreviewUrl('');
     setGalleryItems([]); 
     setIsProductModalOpen(true); 
   };
@@ -253,7 +273,9 @@ export const Admin = () => {
       image_width: product.image_width || 0 
     }); 
     setMainImageFile(null);
-    setMainImagePreviewUrl(product.image || ''); 
+    setMainImagePreviewUrl(product.image || '');
+    setDropzoneImageFile(null);
+    setDropzoneImagePreviewUrl(product.dropzone_image_url || product.image_url || product.image || '');
     setGalleryItems((product.gallery_images || []).map((url: string) => ({ id: `${Date.now()}_${Math.random()}`, previewUrl: url, isRemote: true }))); 
     setIsProductModalOpen(true); 
   };
@@ -274,7 +296,7 @@ export const Admin = () => {
       let finalObjectWidth = productFormData.object_px_width;
       let finalImageWidth = productFormData.image_width;
       
-      const imageSource = mainImageFile || mainImagePreviewUrl;
+      const imageSource = dropzoneImageFile || dropzoneImagePreviewUrl || mainImageFile || mainImagePreviewUrl;
       
       // 이미지가 존재하면 무조건 분석 시도 (재분석 버튼 안 눌러도 됨)
       if (imageSource) {
@@ -292,9 +314,13 @@ export const Admin = () => {
         }
       }
 
-      // 2. 이미지 업로드
-      let imageUrl = mainImagePreviewUrl; 
-      if (mainImageFile) imageUrl = await uploadImageToSupabase(mainImageFile); 
+      // 2. 이미지 업로드 (메인 썸네일 / 드랍존 전용 분리)
+      let thumbnailImageUrl = mainImagePreviewUrl;
+      if (mainImageFile) thumbnailImageUrl = await uploadImageToSupabase(mainImageFile);
+
+      let dropzoneImageUrl = dropzoneImagePreviewUrl;
+      if (dropzoneImageFile) dropzoneImageUrl = await uploadImageToSupabase(dropzoneImageFile);
+      if (!dropzoneImageUrl) dropzoneImageUrl = thumbnailImageUrl;
       
       let galleryUrls: string[] = []; 
       if (galleryItems.length > 0) { 
@@ -315,7 +341,8 @@ export const Admin = () => {
         sale_price: productFormData.sale_price ? parseInt(productFormData.sale_price) : null, 
         stock_quantity: parseInt(productFormData.stock_quantity) || 0, 
         status: productFormData.status, 
-        image_url: imageUrl, 
+        image_url: thumbnailImageUrl || null,
+        dropzone_image_url: dropzoneImageUrl || null,
         gallery_images: galleryUrls, 
         description: productFormData.description, 
         is_best: productFormData.is_best, 
@@ -351,13 +378,18 @@ export const Admin = () => {
 
   const uploadImageToSupabase = async (file: File) => { const fileExt = file.name.split('.').pop(); const fileName = `${Date.now()}_${Math.random()}.${fileExt}`; const { error } = await supabase.storage.from('product-images').upload(fileName, file); if (error) throw error; const { data } = supabase.storage.from('product-images').getPublicUrl(fileName); return data.publicUrl; };
   
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>, type: 'main' | 'gallery') => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>, type: 'main' | 'dropzone' | 'gallery') => {
     if (e.target.files && e.target.files.length > 0) {
       if (type === 'main') {
         const file = e.target.files[0];
         if (mainImagePreviewUrl.startsWith('blob:')) URL.revokeObjectURL(mainImagePreviewUrl);
         setMainImageFile(file);
         setMainImagePreviewUrl(URL.createObjectURL(file));
+      } else if (type === 'dropzone') {
+        const file = e.target.files[0];
+        if (dropzoneImagePreviewUrl.startsWith('blob:')) URL.revokeObjectURL(dropzoneImagePreviewUrl);
+        setDropzoneImageFile(file);
+        setDropzoneImagePreviewUrl(URL.createObjectURL(file));
         await analyzeImage(file);
       } else {
         const newFiles = Array.from(e.target.files!);
@@ -376,6 +408,13 @@ export const Admin = () => {
     if (!mainImagePreviewUrl) return;
     setCropImageSrc(mainImagePreviewUrl);
     setCropTarget({ type: 'main' });
+    setIsCropperOpen(true);
+  };
+
+  const openCropperForDropzone = () => {
+    if (!dropzoneImagePreviewUrl) return;
+    setCropImageSrc(dropzoneImagePreviewUrl);
+    setCropTarget({ type: 'dropzone' });
     setIsCropperOpen(true);
   };
 
@@ -399,6 +438,10 @@ export const Admin = () => {
       if (mainImagePreviewUrl.startsWith('blob:')) URL.revokeObjectURL(mainImagePreviewUrl);
       setMainImageFile(file);
       setMainImagePreviewUrl(previewUrl);
+    } else if (cropTarget.type === 'dropzone') {
+      if (dropzoneImagePreviewUrl.startsWith('blob:')) URL.revokeObjectURL(dropzoneImagePreviewUrl);
+      setDropzoneImageFile(file);
+      setDropzoneImagePreviewUrl(previewUrl);
       await analyzeImage(file);
     } else {
       setGalleryItems(prev => prev.map(item => {
@@ -606,8 +649,8 @@ export const Admin = () => {
                       <div className="flex justify-between mb-1">
                         <label className="block text-sm font-medium text-gray-400">물체 픽셀 (자동 감지)</label>
                         {/* ✅ 재분석 버튼 */}
-                        {mainImagePreviewUrl && (
-                          <button type="button" onClick={() => analyzeImage(mainImagePreviewUrl)} className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                        {dropzoneImagePreviewUrl && (
+                          <button type="button" onClick={() => analyzeImage(dropzoneImagePreviewUrl)} className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1">
                             <RefreshCw size={10} /> 재분석
                           </button>
                         )}
@@ -629,42 +672,67 @@ export const Admin = () => {
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">재고 수량</label><input type="number" value={productFormData.stock_quantity} onChange={e => setProductFormData({...productFormData, stock_quantity: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none" placeholder="0" /></div>
               </div>
               <div className="pt-4 border-t border-gray-100 space-y-4">
-                 <div>
-                   <label className="block text-sm font-medium text-gray-700 mb-2">메인 썸네일</label>
-                   <div className="w-32 h-32 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center relative overflow-hidden group">
-                     {mainImagePreviewUrl ? (
-                       <>
-                         <img src={mainImagePreviewUrl} className="w-full h-full object-cover" />
-                         <button type="button" onClick={openCropperForMain} className="absolute bottom-1 right-1 z-10 bg-white/90 text-gray-700 text-xs px-2 py-1 rounded shadow opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                           <Edit2 size={12} /> 편집
-                         </button>
-                       </>
-                     ) : (
-                       <ImageIcon className="text-gray-400" />
-                     )}
-                     <input type="file" accept="image/*" onChange={e => handleImageChange(e, 'main')} className="absolute inset-0 opacity-0 cursor-pointer z-0" />
-                   </div>
-                   {mainImagePreviewUrl && <p className="text-xs text-gray-400 mt-1">{isAnalyzingImage ? "⏳ 이미지 크기 분석 중..." : `이미지 분석 완료: ${productFormData.object_px_width}px (물체)`}</p>}
-                 </div>
-                 <div>
-                   <label className="block text-sm font-medium text-gray-700 mb-2">추가 갤러리 이미지</label>
-                   <div className="flex gap-2 flex-wrap">
-                     {galleryItems.map((item) => (
-                       <div key={item.id} className="w-24 h-24 rounded-lg overflow-hidden border border-gray-200 relative group">
-                         <img src={item.previewUrl} className="w-full h-full object-cover" />
-                         <button type="button" onClick={() => openCropperForGallery(item.id)} className="absolute bottom-1 left-1 bg-white/90 text-gray-700 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow">
-                           <Edit2 size={12} />
-                         </button>
-                         <button type="button" onClick={() => removeGalleryItem(item.id)} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"><X size={12}/></button>
-                       </div>
-                     ))}
-                     <div className="w-24 h-24 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 relative">
-                       <Plus className="text-gray-400 mb-1" />
-                       <span className="text-xs text-gray-500">추가</span>
-                       <input type="file" accept="image/*" multiple onChange={e => handleImageChange(e, 'gallery')} className="absolute inset-0 opacity-0 cursor-pointer" />
-                     </div>
-                   </div>
-                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">메인 썸네일 (SHOP 표시용)</label>
+                    <div className="w-32 h-32 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center relative overflow-hidden group">
+                      {mainImagePreviewUrl ? (
+                        <>
+                          <img src={mainImagePreviewUrl} className="w-full h-full object-cover" />
+                          <button type="button" onClick={openCropperForMain} className="absolute bottom-1 right-1 z-10 bg-white/90 text-gray-700 text-xs px-2 py-1 rounded shadow opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                            <Edit2 size={12} /> 편집
+                          </button>
+                        </>
+                      ) : (
+                        <ImageIcon className="text-gray-400" />
+                      )}
+                      <input type="file" accept="image/*" onChange={e => handleImageChange(e, 'main')} className="absolute inset-0 opacity-0 cursor-pointer z-0" />
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">상품 카드/상세페이지 대표 이미지로 사용됩니다.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">드랍존 전용 이미지 (조합용)</label>
+                    <div className="w-32 h-32 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center relative overflow-hidden group">
+                      {dropzoneImagePreviewUrl ? (
+                        <>
+                          <img src={dropzoneImagePreviewUrl} className="w-full h-full object-contain" />
+                          <button type="button" onClick={openCropperForDropzone} className="absolute bottom-1 right-1 z-10 bg-white/90 text-gray-700 text-xs px-2 py-1 rounded shadow opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                            <Edit2 size={12} /> 편집
+                          </button>
+                        </>
+                      ) : (
+                        <ImageIcon className="text-gray-400" />
+                      )}
+                      <input type="file" accept="image/*" onChange={e => handleImageChange(e, 'dropzone')} className="absolute inset-0 opacity-0 cursor-pointer z-0" />
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {dropzoneImagePreviewUrl
+                        ? (isAnalyzingImage ? "⏳ 이미지 크기 분석 중..." : `분석 완료: ${productFormData.object_px_width}px (물체) / ${productFormData.image_width}px (전체)`)
+                        : '조합존 표시 및 자동 픽셀 분석에 사용됩니다.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">추가 갤러리 이미지</label>
+                  <div className="flex gap-2 flex-wrap">
+                    {galleryItems.map((item) => (
+                      <div key={item.id} className="w-24 h-24 rounded-lg overflow-hidden border border-gray-200 relative group">
+                        <img src={item.previewUrl} className="w-full h-full object-cover" />
+                        <button type="button" onClick={() => openCropperForGallery(item.id)} className="absolute bottom-1 left-1 bg-white/90 text-gray-700 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow">
+                          <Edit2 size={12} />
+                        </button>
+                        <button type="button" onClick={() => removeGalleryItem(item.id)} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"><X size={12}/></button>
+                      </div>
+                    ))}
+                    <div className="w-24 h-24 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 relative">
+                      <Plus className="text-gray-400 mb-1" />
+                      <span className="text-xs text-gray-500">추가</span>
+                      <input type="file" accept="image/*" multiple onChange={e => handleImageChange(e, 'gallery')} className="absolute inset-0 opacity-0 cursor-pointer" />
+                    </div>
+                  </div>
+                </div>
               </div>
               <div className="pt-4 border-t border-gray-100"><label className="block text-sm font-medium text-gray-700 mb-2">상세 설명</label><RichTextEditor value={productFormData.description} onChange={val => setProductFormData({...productFormData, description: val})} placeholder="상품 설명" /></div>
               <div className="flex gap-3 pt-4 border-t border-gray-100"><button type="button" onClick={() => setIsProductModalOpen(false)} className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-lg">취소</button><button type="submit" disabled={uploading} className="flex-1 py-3 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700">{uploading ? '저장 중...' : '저장하기'}</button></div>

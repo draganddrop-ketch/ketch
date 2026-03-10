@@ -26,8 +26,10 @@ export const CanvasProvider = ({ children }: { children: ReactNode }) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const addItemToCanvas = (product: KeyringItem) => {
+    const dropzoneImage = product.dropzone_image_url || product.image || product.image_url || '';
     const newItem: CanvasItem = {
       ...product,
+      image: dropzoneImage,
       canvasId: Math.random().toString(36).substr(2, 9),
       x: 150 + (Math.random() * 40 - 20),
       y: 150 + (Math.random() * 40 - 20),

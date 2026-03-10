@@ -98,7 +98,7 @@ export const CanvasPreview = ({
              <div className="w-full h-full" style={{ transform: `rotate(${item.rotation}deg)` }}>
                 {/* w-full로 부모 div 크기를 따라가게 설정 */}
                 <img 
-                  src={item.image || item.image_url} 
+                  src={item.dropzone_image_url || item.image || item.image_url} 
                   alt={item.name} 
                   className="w-full h-auto object-contain drop-shadow-2xl" 
                 />

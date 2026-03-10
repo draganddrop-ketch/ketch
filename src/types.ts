@@ -11,6 +11,7 @@ export interface KeyringItem {
   status?: 'active' | 'sold_out' | 'hidden';
   image?: string;
   image_url?: string;
+  dropzone_image_url?: string | null;
   description?: string | null;
   gallery_images?: string[] | null;
   is_best?: boolean;

@@ -37,13 +37,16 @@ const dataURItoBlob = (dataURI: string) => {
 
 export const Home = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchTextParam = searchParams.get('search') || '';
+  const productParam = searchParams.get('product');
   const { addToCart } = useCart();
   const { user } = useAuth();
   const { currentSection } = useSection();
   const { canvasItems, setCanvasItems, addItemToCanvas } = useCanvas();
   const { settings, getBorderStyle } = useSiteSettings(); 
   const canvasBuilderRef = useRef<CanvasBuilderRef>(null);
+  const hasSectionInitialized = useRef(false);
 
   const [viewMode, setViewMode] = useState<'HOME' | 'CATEGORY'>('HOME');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -63,18 +66,81 @@ export const Home = () => {
   const canvasBgColor = settings?.canvas_bg_color || '#FFFFFF';
 
   useEffect(() => { fetchAllData(); }, []);
-  useEffect(() => { const query = searchParams.get('search'); if (query !== null) setSearchQuery(query); }, [searchParams]);
+  useEffect(() => {
+    setSearchQuery(searchTextParam);
+  }, [searchTextParam]);
+
+  useEffect(() => {
+    if (!productParam) {
+      setSelectedProduct(null);
+      return;
+    }
+
+    const targetProduct = products.find((product) => product.id === productParam) || null;
+    setSelectedProduct(targetProduct);
+    if (targetProduct) window.scrollTo({ top: 0, behavior: 'smooth' });
+    else if (products.length > 0) updateUrlQuery({ product: null }, { replace: true });
+  }, [productParam, products]);
   useEffect(() => { 
-    setSelectedProduct(null); 
+    if (hasSectionInitialized.current && productParam) {
+      closeProductDetail({ replace: true });
+    }
+    hasSectionInitialized.current = true;
     if (currentSection === 'BUILDER') { setViewMode('HOME'); setSelectedCategory(null); } 
     else if (currentSection === 'SHOP') { setSelectedCategory(null); } 
   }, [currentSection]);
 
   const fetchAllData = async () => { await Promise.all([fetchCategories(), fetchProducts()]); setLoading(false); };
   const fetchCategories = async () => { const { data } = await supabase.from('categories').select('*').eq('is_hidden', false).order('display_order', { ascending: true }); setCategories(data || []); };
-  const fetchProducts = async () => { const { data } = await supabase.from('products').select('*'); if (!data) return; const formatted: KeyringItem[] = data.map(item => ({ ...item, id: item.id, name: item.name, category: item.category, category_ids: item.category_ids || [item.category], price: item.price, sale_price: item.sale_price, status: item.status, image: item.image_url || item.image || '', description: item.description, gallery_images: item.gallery_images, is_best: item.is_best, is_new: item.is_new, stock_quantity: item.stock_quantity })); setProducts(formatted); };
+  const fetchProducts = async () => {
+    const { data } = await supabase.from('products').select('*');
+    if (!data) return;
 
-  const handleProductClick = (product: KeyringItem) => { setSelectedProduct(product); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+    const formatted: KeyringItem[] = data.map((item) => {
+      const thumbnailImage = item.image_url || item.image || '';
+      const dropzoneImage = item.dropzone_image_url || thumbnailImage;
+      return {
+        ...item,
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        category_ids: item.category_ids || [item.category],
+        price: item.price,
+        sale_price: item.sale_price,
+        status: item.status,
+        image: thumbnailImage,
+        image_url: thumbnailImage,
+        dropzone_image_url: dropzoneImage,
+        description: item.description,
+        gallery_images: item.gallery_images,
+        is_best: item.is_best,
+        is_new: item.is_new,
+        stock_quantity: item.stock_quantity
+      };
+    });
+
+    setProducts(formatted);
+  };
+
+  const updateUrlQuery = (updates: Record<string, string | null>, options?: { replace?: boolean }) => {
+    const nextParams = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (!value) nextParams.delete(key);
+      else nextParams.set(key, value);
+    });
+
+    setSearchParams(nextParams, { replace: options?.replace });
+  };
+
+  const handleProductClick = (product: KeyringItem) => {
+    navigate(`/product/${product.id}`);
+  };
+
+  const closeProductDetail = (options?: { replace?: boolean }) => {
+    setSelectedProduct(null);
+    if (!productParam) return;
+    updateUrlQuery({ product: null }, { replace: options?.replace ?? true });
+  };
   const handleQuickAdd = (product: KeyringItem) => { if (currentSection === 'SHOP') { addToCart({ id: product.id, name: product.name, price: product.sale_price || product.price, image: product.image, quantity: 1 }); alert('Added to Cart!'); } else { addItemToCanvas(product); setShowToast(true); setTimeout(() => setShowToast(false), 2000); } };
   const handleCanvasItemsChange = (items: CanvasItem[]) => setCanvasItems(items);
   
@@ -194,7 +260,7 @@ export const Home = () => {
   if (settings?.is_maintenance_mode) return <div className="flex h-screen bg-black text-white items-center justify-center"><div className="text-center"><Wrench size={40} className="mx-auto mb-4 text-white"/><h1 className="text-2xl">MAINTENANCE</h1></div></div>;
 
   const handleCategoryChange = (category: string) => {
-    setSelectedProduct(null);
+    closeProductDetail();
     if (currentSection === 'BUILDER') {
       if (category === 'all') { setViewMode('HOME'); setSelectedCategory(null); }
       else { setViewMode('CATEGORY'); setSelectedCategory(category); }
@@ -209,7 +275,7 @@ export const Home = () => {
       {/* 1. Header Wrapper (Sticky) */}
       {/* ✅ border-b 제거 (로고 아래 선 삭제) */}
       <div className="sticky top-0 z-50 bg-black/95 backdrop-blur-md border-b-0">
-        <Header cartCount={0} onSearchChange={setSearchQuery} onLogoClick={() => { setSelectedProduct(null); if (currentSection === 'SHOP') setSelectedCategory(null); else { setViewMode('HOME'); setSelectedCategory(null); } }} />
+        <Header cartCount={0} onSearchChange={setSearchQuery} onLogoClick={() => { closeProductDetail(); if (currentSection === 'SHOP') setSelectedCategory(null); else { setViewMode('HOME'); setSelectedCategory(null); } }} />
       </div>
       
       {/* 2. CategoryTabs Wrapper (Relative - Not Sticky) */}
@@ -253,11 +319,11 @@ export const Home = () => {
             <div className={`grid gap-6 ${currentSection === 'BUILDER' ? 'grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(320px,460px)]' : 'grid-cols-1'}`}>
               
               <div
-                className={`${currentSection === 'BUILDER' ? 'border-0' : 'border'} p-0`}
+                className={`${currentSection === 'BUILDER' || selectedProduct ? 'border-0' : 'border'} p-0`}
                 style={{ backgroundColor: globalBg, borderColor: globalBorder }}
               >
                 {selectedProduct ? (
-                  <div className="px-0 py-6 md:py-0"><ProductDetailView product={selectedProduct} onBack={() => setSelectedProduct(null)} /></div>
+                  <div className="px-0 py-6 md:py-0"><ProductDetailView product={selectedProduct} onBack={closeProductDetail} /></div>
                 ) : (
                   <div className="space-y-4">
                     {viewMode === 'HOME' && settings?.builder_banner_images && (
