@@ -5,6 +5,7 @@ import { useCart } from '../context/CartContext';
 import { useCanvas } from '../context/CanvasContext';
 import { useSection } from '../context/SectionContext';
 import { useSiteSettings } from '../context/SiteSettingsContext';
+import { ProductTabs } from './ProductTabs.tsx';
 
 interface ProductDetailViewProps {
   product: KeyringItem;
@@ -42,16 +43,17 @@ export const ProductDetailView = ({ product, onBack }: ProductDetailViewProps) =
 
   return (
     <div className="w-full animate-fade-in" style={{ color: textColor }}>
-      <button
-        onClick={onBack}
-        className="flex items-center gap-2 mb-6 transition-opacity hover:opacity-80"
-      >
-        <ArrowLeft size={20} />
-        BACK TO LIST
-      </button>
+      <div className="w-full max-w-[1300px] mx-auto">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-2 mb-6 transition-opacity hover:opacity-80"
+        >
+          <ArrowLeft size={20} />
+          BACK TO LIST
+        </button>
 
-      <div className="space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* 이미지 섹션 (수정됨: 잘림 방지) */}
           <div className="space-y-4">
             <div className="aspect-square bg-white rounded-lg overflow-hidden border border-gray-200 flex items-center justify-center">
@@ -161,7 +163,9 @@ export const ProductDetailView = ({ product, onBack }: ProductDetailViewProps) =
               </div>
             </div>
           </div>
+          </div>
         </div>
+        <ProductTabs product={product} />
       </div>
     </div>
   );

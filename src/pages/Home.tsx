@@ -40,9 +40,11 @@ export const Home = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const searchTextParam = searchParams.get('search') || '';
   const productParam = searchParams.get('product');
+  const categoryParam = searchParams.get('category');
+  const sectionParam = searchParams.get('section');
   const { addToCart } = useCart();
   const { user } = useAuth();
-  const { currentSection } = useSection();
+  const { currentSection, setCurrentSection } = useSection();
   const { canvasItems, setCanvasItems, addItemToCanvas } = useCanvas();
   const { settings, getBorderStyle } = useSiteSettings(); 
   const canvasBuilderRef = useRef<CanvasBuilderRef>(null);
@@ -71,6 +73,25 @@ export const Home = () => {
   }, [searchTextParam]);
 
   useEffect(() => {
+    if (!sectionParam) return;
+    const normalized = sectionParam.toLowerCase();
+    if (normalized !== 'shop' && normalized !== 'builder') return;
+    const desired = normalized === 'builder' ? 'BUILDER' : 'SHOP';
+    if (desired !== currentSection) setCurrentSection(desired);
+  }, [sectionParam]);
+
+  useEffect(() => {
+    const desiredParam = currentSection === 'BUILDER' ? 'builder' : 'shop';
+    if (!sectionParam) {
+      updateUrlQuery({ section: desiredParam }, { replace: true });
+      return;
+    }
+    if (sectionParam !== desiredParam) {
+      updateUrlQuery({ section: desiredParam, category: null, product: null }, { replace: false });
+    }
+  }, [currentSection]);
+
+  useEffect(() => {
     if (!productParam) {
       setSelectedProduct(null);
       return;
@@ -89,6 +110,22 @@ export const Home = () => {
     if (currentSection === 'BUILDER') { setViewMode('HOME'); setSelectedCategory(null); } 
     else if (currentSection === 'SHOP') { setSelectedCategory(null); } 
   }, [currentSection]);
+
+  useEffect(() => {
+    if (!categoryParam) {
+      setSelectedCategory(null);
+      if (currentSection === 'BUILDER') setViewMode('HOME');
+      return;
+    }
+    const normalized = categoryParam.toLowerCase();
+    const category = categories.find((c) => c.slug.toLowerCase() === normalized);
+    if (!category || category.section !== currentSection) {
+      if (categories.length > 0) updateUrlQuery({ category: null }, { replace: true });
+      return;
+    }
+    setSelectedCategory(category.slug);
+    if (currentSection === 'BUILDER') setViewMode('CATEGORY');
+  }, [categoryParam, categories, currentSection]);
 
   const fetchAllData = async () => { await Promise.all([fetchCategories(), fetchProducts()]); setLoading(false); };
   const fetchCategories = async () => { const { data } = await supabase.from('categories').select('*').eq('is_hidden', false).order('display_order', { ascending: true }); setCategories(data || []); };
@@ -123,7 +160,10 @@ export const Home = () => {
   };
 
   const updateUrlQuery = (updates: Record<string, string | null>, options?: { replace?: boolean }) => {
-    const nextParams = new URLSearchParams(searchParams);
+    const baseParams = typeof window === 'undefined'
+      ? new URLSearchParams(searchParams)
+      : new URLSearchParams(window.location.search);
+    const nextParams = new URLSearchParams(baseParams);
     Object.entries(updates).forEach(([key, value]) => {
       if (!value) nextParams.delete(key);
       else nextParams.set(key, value);
@@ -140,6 +180,13 @@ export const Home = () => {
     setSelectedProduct(null);
     if (!productParam) return;
     updateUrlQuery({ product: null }, { replace: options?.replace ?? true });
+  };
+
+  const clearCategorySelection = (options?: { replace?: boolean }) => {
+    setSelectedCategory(null);
+    if (currentSection === 'BUILDER') setViewMode('HOME');
+    if (!categoryParam) return;
+    updateUrlQuery({ category: null }, { replace: options?.replace ?? true });
   };
   const handleQuickAdd = (product: KeyringItem) => { if (currentSection === 'SHOP') { addToCart({ id: product.id, name: product.name, price: product.sale_price || product.price, image: product.image, quantity: 1 }); alert('Added to Cart!'); } else { addItemToCanvas(product); setShowToast(true); setTimeout(() => setShowToast(false), 2000); } };
   const handleCanvasItemsChange = (items: CanvasItem[]) => setCanvasItems(items);
@@ -211,7 +258,7 @@ export const Home = () => {
             <div key={category.id} className="px-0">
               <div className="flex justify-between items-end mb-4 border-b pb-2" style={{ borderColor: globalBorder }}>
                 <h2 className="font-bold uppercase tracking-wider text-sm" style={{ color: globalText }}>{category.name}</h2>
-                <button onClick={() => { setSelectedCategory(category.slug); setViewMode('CATEGORY'); window.scrollTo(0,0); }} className="text-xs opacity-60 hover:opacity-100 flex items-center gap-1" style={{ color: globalText }}>VIEW ALL <ArrowRight size={12}/></button>
+                <button onClick={() => handleCategoryChange(category.slug)} className="text-xs opacity-60 hover:opacity-100 flex items-center gap-1" style={{ color: globalText }}>VIEW ALL <ArrowRight size={12}/></button>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
                 {categoryProducts.slice(0, 8).map(p => (
@@ -261,10 +308,13 @@ export const Home = () => {
 
   const handleCategoryChange = (category: string) => {
     closeProductDetail();
+    const sectionValue = currentSection === 'BUILDER' ? 'builder' : 'shop';
+    updateUrlQuery({ section: sectionValue, category });
     if (currentSection === 'BUILDER') {
-      if (category === 'all') { setViewMode('HOME'); setSelectedCategory(null); }
-      else { setViewMode('CATEGORY'); setSelectedCategory(category); }
-    } else { setSelectedCategory(category === 'all' ? null : category); }
+      setViewMode('CATEGORY');
+    }
+    setSelectedCategory(category);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const footerContent = (settings?.footer_content || '').trim();
@@ -275,7 +325,14 @@ export const Home = () => {
       {/* 1. Header Wrapper (Sticky) */}
       {/* ✅ border-b 제거 (로고 아래 선 삭제) */}
       <div className="sticky top-0 z-50 bg-black/95 backdrop-blur-md border-b-0">
-        <Header cartCount={0} onSearchChange={setSearchQuery} onLogoClick={() => { closeProductDetail(); if (currentSection === 'SHOP') setSelectedCategory(null); else { setViewMode('HOME'); setSelectedCategory(null); } }} />
+        <Header
+          cartCount={0}
+          onSearchChange={setSearchQuery}
+          onLogoClick={() => {
+            closeProductDetail();
+            clearCategorySelection();
+          }}
+        />
       </div>
       
       {/* 2. CategoryTabs Wrapper (Relative - Not Sticky) */}

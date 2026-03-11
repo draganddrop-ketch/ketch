@@ -9,6 +9,7 @@ import { useCanvas } from '../context/CanvasContext';
 import { useSection } from '../context/SectionContext';
 import { useSiteSettings } from '../context/SiteSettingsContext'; // ✅
 import { CanvasBuilder } from '../components/CanvasBuilder';
+import { ProductTabs } from '../components/ProductTabs.tsx';
 
 export const ProductDetail = () => {
   const { id } = useParams();
@@ -80,8 +81,9 @@ export const ProductDetail = () => {
     <div className="min-h-screen" style={{ backgroundColor: bgColor, color: textColor }}>
       <Header cartCount={0} />
       <div className="w-full px-4 md:px-6 py-8">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 mb-8 hover:opacity-80" style={{ color: textColor, opacity: 0.6 }}><ArrowLeft size={20} /> BACK</button>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+        <div className="w-full max-w-[1300px] mx-auto">
+          <button onClick={() => navigate(-1)} className="flex items-center gap-2 mb-8 hover:opacity-80" style={{ color: textColor, opacity: 0.6 }}><ArrowLeft size={20} /> BACK</button>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           <div className="space-y-4">
             <div className="aspect-square bg-white rounded-lg overflow-hidden border flex items-center justify-center border-gray-200">
               <img src={activeImage} alt={product.name} className="w-full h-full object-contain" />
@@ -118,6 +120,8 @@ export const ProductDetail = () => {
               </div>
             </div>
           </div>
+          </div>
+          <ProductTabs product={product} />
         </div>
       </div>
 

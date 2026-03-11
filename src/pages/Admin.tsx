@@ -19,6 +19,7 @@ import { MainPageManager } from '../components/MainPageManager';
 import { ShippingManager } from '../components/ShippingManager';
 import { OrderManager } from '../components/OrderManager';
 import { CustomerManager } from '../components/CustomerManager';
+import { ReviewQnaManager } from '../components/ReviewQnaManager.tsx';
 
 interface Category { id: string; name: string; slug: string; display_order: number; section: 'SHOP' | 'BUILDER'; is_hidden: boolean; }
 interface Profile { id: string; email: string; role: string; created_at: string; }
@@ -553,7 +554,12 @@ export const Admin = () => {
         {activeTab === 'customers' && <div className="h-full overflow-y-auto bg-gray-50"><CustomerManager /></div>}
         {activeTab === 'design' && <div className="p-8 h-full overflow-y-auto"><h2 className="text-2xl font-bold mb-4">메인 디자인 편집</h2><MainPageManager /></div>}
         {activeTab === 'settings' && <div className="p-8 h-full overflow-y-auto"><h2 className="text-2xl font-bold mb-4">상점 설정</h2><SiteSettingsForm /></div>}
-        {activeTab === 'reviews' && <div className="p-8 h-full overflow-y-auto"><h2 className="text-2xl font-bold mb-4">후기와 질문</h2><div className="bg-white p-6 border rounded-lg text-gray-500">Q&A 게시판이 여기에 표시됩니다.</div></div>}
+        {activeTab === 'reviews' && (
+          <div className="p-8 h-full overflow-y-auto">
+            <h2 className="text-2xl font-bold mb-4">후기와 질문</h2>
+            <ReviewQnaManager />
+          </div>
+        )}
 
         {activeTab === 'products' && (
           <div className="flex h-full">
@@ -815,7 +821,11 @@ export const Admin = () => {
                   </div>
                 </div>
               </div>
-              <div className="pt-4 border-t border-gray-100"><label className="block text-sm font-medium text-gray-700 mb-2">상세 설명</label><RichTextEditor value={productFormData.description} onChange={val => setProductFormData({...productFormData, description: val})} placeholder="상품 설명" /></div>
+              <div className="pt-4 border-t border-gray-100">
+                <label className="block text-sm font-medium text-gray-700 mb-2">상세정보</label>
+                <RichTextEditor value={productFormData.description} onChange={val => setProductFormData({...productFormData, description: val})} placeholder="상세정보 내용을 입력하세요." />
+                <p className="text-xs text-gray-400 mt-1">상품 상세페이지의 ‘상세정보’ 탭에 표시됩니다.</p>
+              </div>
               <div className="flex gap-3 pt-4 border-t border-gray-100"><button type="button" onClick={() => setIsProductModalOpen(false)} className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-lg">취소</button><button type="submit" disabled={uploading} className="flex-1 py-3 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700">{uploading ? '저장 중...' : '저장하기'}</button></div>
             </form>
           </div>
