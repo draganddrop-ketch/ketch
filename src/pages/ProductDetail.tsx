@@ -22,14 +22,34 @@ export const ProductDetail = () => {
   const [activeImage, setActiveImage] = useState<string>('');
   const [isDesktopDropzoneMinimized, setIsDesktopDropzoneMinimized] = useState(false);
   const [isMobileDropzoneOpen, setIsMobileDropzoneOpen] = useState(false);
+  const [viewportSize, setViewportSize] = useState(() => ({
+    width: typeof window === 'undefined' ? 1200 : window.innerWidth,
+    height: typeof window === 'undefined' ? 800 : window.innerHeight
+  }));
 
   const bgColor = settings?.global_bg_color || '#000000';
   const textColor = settings?.global_text_color || '#000000';
   const nameColor = textColor;
   const accentColor = settings?.product_accent_color || settings?.accent_color || '#34d399';
   const borderStyle = getBorderStyle();
+  const canvasHeightSetting = settings?.canvas_height || 650;
+  const baseDropzoneWidth = 450;
+  const baseDropzoneHeight = canvasHeightSetting + 64; // CanvasBuilder header(48) + resize handle(16)
+  const desktopDropzoneWidth = 360;
+  const desktopDropzoneScale = desktopDropzoneWidth / baseDropzoneWidth;
+  const desktopDropzoneHeight = Math.round(baseDropzoneHeight * desktopDropzoneScale);
+  const mobileMaxWidth = Math.min(420, Math.max(280, viewportSize.width - 32));
+  const mobileAvailableHeight = Math.max(260, Math.round(viewportSize.height * 0.78 - 64));
+  const mobileDropzoneScale = Math.min(mobileMaxWidth / baseDropzoneWidth, mobileAvailableHeight / baseDropzoneHeight);
+  const mobileDropzoneWidth = Math.round(baseDropzoneWidth * mobileDropzoneScale);
+  const mobileDropzoneHeight = Math.round(baseDropzoneHeight * mobileDropzoneScale);
 
   useEffect(() => { fetchProduct(); }, [id]);
+  useEffect(() => {
+    const handleResize = () => setViewportSize({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const fetchProduct = async () => {
     try {
@@ -113,7 +133,7 @@ export const ProductDetail = () => {
                 DROP ZONE ({canvasItems.length})
               </button>
             ) : (
-              <div className="w-[380px] bg-white/95 backdrop-blur rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
+              <div className="bg-white/95 backdrop-blur rounded-xl shadow-2xl border border-gray-200 overflow-hidden" style={{ width: `${desktopDropzoneWidth}px` }}>
                 <div className="h-11 px-4 flex items-center justify-between bg-black text-white">
                   <div className="text-xs font-bold tracking-wider">DROP ZONE ({canvasItems.length})</div>
                   <button
@@ -124,8 +144,10 @@ export const ProductDetail = () => {
                     <Minus size={16} />
                   </button>
                 </div>
-                <div className="h-[430px] overflow-hidden">
-                  <CanvasBuilder onItemsChange={handleCanvasItemsChange} initialHeight={420} />
+                <div className="overflow-hidden" style={{ height: `${desktopDropzoneHeight}px` }}>
+                  <div style={{ width: `${baseDropzoneWidth}px`, height: `${baseDropzoneHeight}px`, transform: `scale(${desktopDropzoneScale})`, transformOrigin: 'top left' }}>
+                    <CanvasBuilder onItemsChange={handleCanvasItemsChange} initialHeight={canvasHeightSetting} />
+                  </div>
                 </div>
               </div>
             )}
@@ -153,8 +175,12 @@ export const ProductDetail = () => {
                     <X size={18} />
                   </button>
                 </div>
-                <div className="h-[calc(78vh-48px)] overflow-hidden">
-                  <CanvasBuilder onItemsChange={handleCanvasItemsChange} initialHeight={420} />
+                <div className="h-[calc(78vh-48px)] overflow-hidden flex items-start justify-center pt-4">
+                  <div style={{ width: `${mobileDropzoneWidth}px`, height: `${mobileDropzoneHeight}px` }}>
+                    <div style={{ width: `${baseDropzoneWidth}px`, height: `${baseDropzoneHeight}px`, transform: `scale(${mobileDropzoneScale})`, transformOrigin: 'top left' }}>
+                      <CanvasBuilder onItemsChange={handleCanvasItemsChange} initialHeight={canvasHeightSetting} />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

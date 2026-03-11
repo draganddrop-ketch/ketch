@@ -453,6 +453,51 @@ export const Admin = () => {
     closeCropper();
   };
 
+  const clearMainImage = () => {
+    if (mainImagePreviewUrl.startsWith('blob:')) URL.revokeObjectURL(mainImagePreviewUrl);
+    setMainImageFile(null);
+    setMainImagePreviewUrl('');
+  };
+
+  const clearDropzoneImage = () => {
+    if (dropzoneImagePreviewUrl.startsWith('blob:')) URL.revokeObjectURL(dropzoneImagePreviewUrl);
+    setDropzoneImageFile(null);
+    setDropzoneImagePreviewUrl('');
+    setProductFormData((prev: any) => ({
+      ...prev,
+      object_px_width: 0,
+      image_width: 0
+    }));
+  };
+
+  const copyMainToDropzone = async () => {
+    if (!mainImagePreviewUrl) return;
+    if (dropzoneImagePreviewUrl.startsWith('blob:')) URL.revokeObjectURL(dropzoneImagePreviewUrl);
+    if (mainImageFile) {
+      setDropzoneImageFile(mainImageFile);
+      const newPreview = URL.createObjectURL(mainImageFile);
+      setDropzoneImagePreviewUrl(newPreview);
+      await analyzeImage(mainImageFile);
+      return;
+    }
+    setDropzoneImageFile(null);
+    setDropzoneImagePreviewUrl(mainImagePreviewUrl);
+    await analyzeImage(mainImagePreviewUrl);
+  };
+
+  const copyDropzoneToMain = () => {
+    if (!dropzoneImagePreviewUrl) return;
+    if (mainImagePreviewUrl.startsWith('blob:')) URL.revokeObjectURL(mainImagePreviewUrl);
+    if (dropzoneImageFile) {
+      setMainImageFile(dropzoneImageFile);
+      const newPreview = URL.createObjectURL(dropzoneImageFile);
+      setMainImagePreviewUrl(newPreview);
+      return;
+    }
+    setMainImageFile(null);
+    setMainImagePreviewUrl(dropzoneImagePreviewUrl);
+  };
+
   const removeGalleryItem = (id: string) => {
     setGalleryItems(prev => {
       const target = prev.find(item => item.id === id);
@@ -689,6 +734,24 @@ export const Admin = () => {
                       <input type="file" accept="image/*" onChange={e => handleImageChange(e, 'main')} className="absolute inset-0 opacity-0 cursor-pointer z-0" />
                     </div>
                     <p className="text-xs text-gray-400 mt-1">상품 카드/상세페이지 대표 이미지로 사용됩니다.</p>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={clearMainImage}
+                        disabled={!mainImagePreviewUrl}
+                        className="px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        삭제
+                      </button>
+                      <button
+                        type="button"
+                        onClick={copyMainToDropzone}
+                        disabled={!mainImagePreviewUrl}
+                        className="px-3 py-1.5 text-xs rounded border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-50"
+                      >
+                        드랍존으로 복사
+                      </button>
+                    </div>
                   </div>
 
                   <div>
@@ -711,6 +774,24 @@ export const Admin = () => {
                         ? (isAnalyzingImage ? "⏳ 이미지 크기 분석 중..." : `분석 완료: ${productFormData.object_px_width}px (물체) / ${productFormData.image_width}px (전체)`)
                         : '조합존 표시 및 자동 픽셀 분석에 사용됩니다.'}
                     </p>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={clearDropzoneImage}
+                        disabled={!dropzoneImagePreviewUrl}
+                        className="px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        삭제
+                      </button>
+                      <button
+                        type="button"
+                        onClick={copyDropzoneToMain}
+                        disabled={!dropzoneImagePreviewUrl}
+                        className="px-3 py-1.5 text-xs rounded border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50"
+                      >
+                        메인으로 복사
+                      </button>
+                    </div>
                   </div>
                 </div>
 
