@@ -118,8 +118,8 @@ export const Home = () => {
       return;
     }
     const normalized = categoryParam.toLowerCase();
-    const category = categories.find((c) => c.slug.toLowerCase() === normalized);
-    if (!category || category.section !== currentSection) {
+    const category = categories.find((c) => c.slug.toLowerCase() === normalized && c.section === currentSection);
+    if (!category) {
       if (categories.length > 0) updateUrlQuery({ category: null }, { replace: true });
       return;
     }
@@ -130,7 +130,11 @@ export const Home = () => {
   const fetchAllData = async () => { await Promise.all([fetchCategories(), fetchProducts()]); setLoading(false); };
   const fetchCategories = async () => { const { data } = await supabase.from('categories').select('*').eq('is_hidden', false).order('display_order', { ascending: true }); setCategories(data || []); };
   const fetchProducts = async () => {
-    const { data } = await supabase.from('products').select('*');
+    const { data } = await supabase
+      .from('products')
+      .select('*')
+      .order('display_order', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false });
     if (!data) return;
 
     const formatted: KeyringItem[] = data.map((item) => {
@@ -149,6 +153,7 @@ export const Home = () => {
         image_url: thumbnailImage,
         dropzone_image_url: dropzoneImage,
         description: item.description,
+        short_description: item.short_description,
         gallery_images: item.gallery_images,
         is_best: item.is_best,
         is_new: item.is_new,
@@ -347,8 +352,7 @@ export const Home = () => {
         <div className="w-full px-4 md:px-6 pt-[8px] pb-20 relative z-0">
           
           {currentSection === 'SHOP' && selectedCategory && !selectedProduct && (
-            <div className="px-0 mt-6">
-              <h2 className="font-bold uppercase tracking-wider mb-6 text-sm" style={{ color: globalText }}>{selectedCategory} LIST</h2>
+            <div className="px-0 mt-0">
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
                 {filteredProducts.map(p => (
                   <ProductCard
@@ -390,10 +394,7 @@ export const Home = () => {
                     )}
                     
                     {viewMode === 'HOME' ? (renderCategorySections(settings?.builder_home_categories)) : (
-                      <div className="px-0 mt-[30px]">
-                        <h2 className="font-bold uppercase tracking-wider mb-6 text-sm" style={{ color: globalText }}>
-                          {selectedCategory ? `${selectedCategory}` : 'PRODUCT LIST'}
-                        </h2>
+                      <div className="px-0 mt-0">
                         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
                           {filteredProducts.map(p => (
                             <ProductCard 

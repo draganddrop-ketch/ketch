@@ -101,7 +101,7 @@ export const Admin = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<KeyringItem[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [activeCategory, setActiveCategory] = useState<string>('all'); // 'all' 또는 category.id
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -164,7 +164,7 @@ export const Admin = () => {
   const fetchProfiles = async () => { const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false }); if (data) setProfiles(data); };
   
   const getCategoryCount = (slug: string) => { if (slug === 'all') return products.length; return products.filter(p => { const catIds = p.category_ids || [p.category]; return catIds.includes(slug); }).length; };
-  const filteredProducts = products.filter(product => { let matchCategory = true; if (activeCategory !== 'all') { const catIds = product.category_ids || [product.category]; matchCategory = catIds.includes(activeCategory); } const matchSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()); return matchCategory && matchSearch; });
+  const filteredProducts = products.filter(product => { let matchCategory = true; if (activeCategory !== 'all') { const activeCat = categories.find(c => c.id === activeCategory); if (activeCat) { const catIds = product.category_ids || [product.category]; matchCategory = catIds.includes(activeCat.slug); } } const matchSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()); return matchCategory && matchSearch; });
   const visibleProductIds = filteredProducts.map(product => product.id);
   const selectedVisibleCount = visibleProductIds.filter(id => selectedProductIds.includes(id)).length;
   const isAllVisibleSelected = visibleProductIds.length > 0 && selectedVisibleCount === visibleProductIds.length;
@@ -297,8 +297,11 @@ export const Admin = () => {
     }
     setIsSavingOrder(true);
     try {
+      // 카테고리별 1000 단위 블록으로 순서 충돌 방지
+      const catIndex = categories.findIndex(c => c.id === activeCategory);
+      const offset = (catIndex + 1) * 1000;
       const updatePromises = reorderItems.map((product, index) =>
-        supabase.from('products').update({ display_order: index + 1 }).eq('id', product.id)
+        supabase.from('products').update({ display_order: offset + index + 1 }).eq('id', product.id)
       );
       const results = await Promise.all(updatePromises);
       const error = results.find(r => r.error)?.error;
@@ -667,7 +670,7 @@ export const Admin = () => {
                 {['SHOP', 'BUILDER'].map(section => (
                   <div key={section}><div className="mt-4 mb-1 px-3 text-xs font-bold text-gray-400 uppercase tracking-wider">{section}</div>
                     {categories.filter(c => c.section === section).map((cat) => (
-                      <button key={cat.id} onClick={() => setActiveCategory(cat.slug)} className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-sm ${activeCategory === cat.slug ? 'bg-white shadow-sm text-purple-700 font-medium' : 'text-gray-600 hover:bg-gray-100'}`}><span>{cat.name}</span><span className="text-xs text-gray-200 px-1.5 rounded-full text-gray-500">{getCategoryCount(cat.slug)}</span></button>
+                      <button key={cat.id} onClick={() => setActiveCategory(cat.id)} className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-sm ${activeCategory === cat.id ? 'bg-white shadow-sm text-purple-700 font-medium' : 'text-gray-600 hover:bg-gray-100'}`}><span>{cat.name}</span><span className="text-xs text-gray-200 px-1.5 rounded-full text-gray-500">{getCategoryCount(cat.slug)}</span></button>
                     ))}
                   </div>
                 ))}
@@ -676,7 +679,7 @@ export const Admin = () => {
             </div>
             <div className="flex-1 flex flex-col h-full overflow-hidden bg-white">
               <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-                <h1 className="text-xl font-bold text-gray-800">{activeCategory === 'all' ? '전체 상품' : categories.find(c => c.slug === activeCategory)?.name}</h1>
+                <h1 className="text-xl font-bold text-gray-800">{activeCategory === 'all' ? '전체 상품' : categories.find(c => c.id === activeCategory)?.name}</h1>
                 <div className="flex gap-3 items-center">
                   {selectedProductIds.length > 0 && (
                     <span className="text-xs text-gray-500">선택 {selectedProductIds.length}개</span>
@@ -729,7 +732,8 @@ export const Admin = () => {
                       </button>
                       <button
                         onClick={startReorderMode}
-                        className="px-4 py-2 bg-slate-700 text-white rounded-lg text-sm font-bold hover:bg-slate-800 flex items-center gap-2 shadow-sm"
+                        disabled={activeCategory === 'all'}
+                        className={`px-4 py-2 text-white rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm ${activeCategory === 'all' ? 'bg-gray-300 cursor-not-allowed' : 'bg-slate-700 hover:bg-slate-800'}`}
                       >
                         <GripVertical size={16} />
                         순서 변경
