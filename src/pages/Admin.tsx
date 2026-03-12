@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
+import type { DragEvent } from 'react';
 import { 
   Search, Plus, Edit2, Trash2, X,
   LayoutGrid, Settings, Package, Image as ImageIcon,
   Home, ShoppingCart, Users, MessageSquare, 
   ExternalLink, Palette, LogOut, ChevronUp, ChevronDown, Tag, Save,
-  Truck, ClipboardList, RefreshCw, Copy
+  Truck, ClipboardList, RefreshCw, Copy, GripVertical
 } from 'lucide-react';
 
 import { supabase } from '../lib/supabase';
@@ -108,11 +109,15 @@ export const Admin = () => {
   const [editingProduct, setEditingProduct] = useState<KeyringItem | null>(null);
   const [isDeletingProducts, setIsDeletingProducts] = useState(false);
   const [isDuplicatingProducts, setIsDuplicatingProducts] = useState(false);
+  const [isReorderMode, setIsReorderMode] = useState(false);
+  const [reorderItems, setReorderItems] = useState<KeyringItem[]>([]);
+  const [draggingProductId, setDraggingProductId] = useState<string | null>(null);
+  const [isSavingOrder, setIsSavingOrder] = useState(false);
   
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
 
   const [productFormData, setProductFormData] = useState<any>({
-    name: '', section: 'SHOP', categories: [], sub_category: '', price: '', sale_price: '', stock_quantity: '0', status: 'active', description: '', is_best: false, is_new: false, real_width_cm: '', object_px_width: 0, image_width: 0,
+    name: '', section: 'SHOP', categories: [], sub_category: '', price: '', sale_price: '', stock_quantity: '0', status: 'active', description: '', short_description: '', is_best: false, is_new: false, real_width_cm: '', object_px_width: 0, image_width: 0,
   });
   const [mainImageFile, setMainImageFile] = useState<File | null>(null);
   const [mainImagePreviewUrl, setMainImagePreviewUrl] = useState<string>('');
@@ -136,7 +141,11 @@ export const Admin = () => {
 
   const fetchCategories = async () => { const { data } = await supabase.from('categories').select('*').order('display_order'); if (data) setCategories(data); };
   const fetchProducts = async () => {
-    const { data } = await supabase.from('products').select('*').order('created_at', { ascending: false });
+    const { data } = await supabase
+      .from('products')
+      .select('*')
+      .order('display_order', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false });
     if (data) {
       const formatted = data.map((item) => {
         const thumbnailImage = item.image_url || item.image || '';
@@ -161,6 +170,20 @@ export const Admin = () => {
   const isAllVisibleSelected = visibleProductIds.length > 0 && selectedVisibleCount === visibleProductIds.length;
 
   useEffect(() => {
+    if (!isReorderMode) return;
+    setReorderItems(filteredProducts);
+  // filteredProducts를 의존성에서 제외: 드래그로 순서 변경 시 덮어씌워지는 버그 방지
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReorderMode]);
+
+  useEffect(() => {
+    if (!isReorderMode) return;
+    setIsReorderMode(false);
+    setReorderItems([]);
+    setDraggingProductId(null);
+  }, [activeCategory, searchQuery]);
+
+  useEffect(() => {
     setSelectedProductIds(prev => prev.filter(id => products.some(product => product.id === id)));
   }, [products]);
 
@@ -171,7 +194,7 @@ export const Admin = () => {
   
   const openAddModal = () => { 
     setEditingProduct(null); 
-    setProductFormData({ name: '', section: 'SHOP', categories: [], sub_category: '', price: '', sale_price: '', stock_quantity: '100', status: 'active', description: '', is_best: false, is_new: false, real_width_cm: '', object_px_width: 0, image_width: 0 }); 
+    setProductFormData({ name: '', section: 'SHOP', categories: [], sub_category: '', price: '', sale_price: '', stock_quantity: '100', status: 'active', description: '', short_description: '', is_best: false, is_new: false, real_width_cm: '', object_px_width: 0, image_width: 0 }); 
     setMainImageFile(null);
     setMainImagePreviewUrl(''); 
     setDropzoneImageFile(null);
@@ -229,11 +252,12 @@ export const Admin = () => {
 
     setIsDuplicatingProducts(true);
     try {
-      const duplicatePayloads = targetProducts.map((product) => {
+        const duplicatePayloads = targetProducts.map((product) => {
         const { id, created_at, updated_at, image, ...rest } = product as any;
         return {
           ...rest,
           name: `${product.name} (복사본)`,
+          display_order: null,
         };
       });
 
@@ -249,6 +273,70 @@ export const Admin = () => {
     } finally {
       setIsDuplicatingProducts(false);
     }
+  };
+
+  const startReorderMode = () => {
+    if (filteredProducts.length === 0) {
+      alert('순서를 변경할 상품이 없습니다.');
+      return;
+    }
+    setReorderItems(filteredProducts);
+    setIsReorderMode(true);
+  };
+
+  const cancelReorderMode = () => {
+    setIsReorderMode(false);
+    setReorderItems([]);
+    setDraggingProductId(null);
+  };
+
+  const handleSaveOrder = async () => {
+    if (reorderItems.length === 0) {
+      cancelReorderMode();
+      return;
+    }
+    setIsSavingOrder(true);
+    try {
+      const updatePromises = reorderItems.map((product, index) =>
+        supabase.from('products').update({ display_order: index + 1 }).eq('id', product.id)
+      );
+      const results = await Promise.all(updatePromises);
+      const error = results.find(r => r.error)?.error;
+      if (error) throw error;
+      await fetchProducts();
+      alert('상품 순서가 저장되었습니다.');
+      cancelReorderMode();
+    } catch (error: any) {
+      console.error('순서 저장 실패:', error);
+      alert(`순서 저장 중 오류가 발생했습니다.\n${error.message}`);
+    } finally {
+      setIsSavingOrder(false);
+    }
+  };
+
+  const handleDragStart = (productId: string) => {
+    setDraggingProductId(productId);
+  };
+
+  const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+  };
+
+  const handleDrop = (targetId: string) => {
+    if (!draggingProductId || draggingProductId === targetId) return;
+    setReorderItems((prev) => {
+      const updated = [...prev];
+      const fromIndex = updated.findIndex((p) => p.id === draggingProductId);
+      const toIndex = updated.findIndex((p) => p.id === targetId);
+      if (fromIndex === -1 || toIndex === -1) return prev;
+      const [moved] = updated.splice(fromIndex, 1);
+      updated.splice(toIndex, 0, moved);
+      return updated;
+    });
+  };
+
+  const handleDragEnd = () => {
+    setDraggingProductId(null);
   };
   
   const openEditModal = (product: any) => { 
@@ -267,6 +355,7 @@ export const Admin = () => {
       stock_quantity: product.stock_quantity?.toString() || '0', 
       status: product.status || 'active', 
       description: product.description || '', 
+      short_description: product.short_description || '',
       is_best: product.is_best || false, 
       is_new: product.is_new || false, 
       real_width_cm: product.real_width_cm ? product.real_width_cm.toString() : '', 
@@ -333,6 +422,12 @@ export const Admin = () => {
       } 
       
       // 3. Payload 생성 (자동 분석된 값 사용)
+      const maxDisplayOrder = products.reduce((max, item) => {
+        const value = typeof item.display_order === 'number' ? item.display_order : 0;
+        return Math.max(max, value);
+      }, 0);
+      const nextDisplayOrder = editingProduct ? editingProduct.display_order ?? null : maxDisplayOrder + 1;
+
       const payload = { 
         name: productFormData.name, 
         category: productFormData.categories[0], 
@@ -346,6 +441,8 @@ export const Admin = () => {
         dropzone_image_url: dropzoneImageUrl || null,
         gallery_images: galleryUrls, 
         description: productFormData.description, 
+        short_description: productFormData.short_description || null,
+        display_order: nextDisplayOrder,
         is_best: productFormData.is_best, 
         is_new: productFormData.is_new, 
         real_width_cm: productFormData.real_width_cm ? parseFloat(productFormData.real_width_cm) : null, 
@@ -591,85 +688,155 @@ export const Admin = () => {
                       placeholder="상품명 검색..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm w-64 focus:outline-none focus:border-purple-500"
+                      disabled={isReorderMode}
+                      className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm w-64 focus:outline-none focus:border-purple-500 disabled:bg-gray-100"
                     />
                   </div>
-                  <button
-                    onClick={handleDuplicateSelectedProducts}
-                    disabled={selectedProductIds.length === 0 || isDuplicatingProducts || isDeletingProducts}
-                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
-                  >
-                    <Copy size={16} />
-                    {isDuplicatingProducts ? '복사 중...' : '선택 복사'}
-                  </button>
-                  <button
-                    onClick={handleDeleteSelectedProducts}
-                    disabled={selectedProductIds.length === 0 || isDeletingProducts || isDuplicatingProducts}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
-                  >
-                    <Trash2 size={16} />
-                    {isDeletingProducts ? '삭제 중...' : '선택 삭제'}
-                  </button>
-                  <button onClick={openAddModal} className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 flex items-center gap-2 shadow-sm"><Plus size={16} /> 상품 추가하기</button>
+                  {isReorderMode ? (
+                    <>
+                      <button
+                        onClick={cancelReorderMode}
+                        disabled={isSavingOrder}
+                        className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 flex items-center gap-2 shadow-sm"
+                      >
+                        취소
+                      </button>
+                      <button
+                        onClick={handleSaveOrder}
+                        disabled={isSavingOrder}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+                      >
+                        {isSavingOrder ? '저장 중...' : '저장'}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={handleDuplicateSelectedProducts}
+                        disabled={selectedProductIds.length === 0 || isDuplicatingProducts || isDeletingProducts}
+                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+                      >
+                        <Copy size={16} />
+                        {isDuplicatingProducts ? '복사 중...' : '선택 복사'}
+                      </button>
+                      <button
+                        onClick={handleDeleteSelectedProducts}
+                        disabled={selectedProductIds.length === 0 || isDeletingProducts || isDuplicatingProducts}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+                      >
+                        <Trash2 size={16} />
+                        {isDeletingProducts ? '삭제 중...' : '선택 삭제'}
+                      </button>
+                      <button
+                        onClick={startReorderMode}
+                        className="px-4 py-2 bg-slate-700 text-white rounded-lg text-sm font-bold hover:bg-slate-800 flex items-center gap-2 shadow-sm"
+                      >
+                        <GripVertical size={16} />
+                        순서 변경
+                      </button>
+                      <button onClick={openAddModal} className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 flex items-center gap-2 shadow-sm"><Plus size={16} /> 상품 추가하기</button>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="flex-1 overflow-auto p-6">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-gray-100 text-gray-400 text-xs uppercase">
-                      <th className="py-3 px-2 w-10">
-                        <input
-                          ref={selectAllRef}
-                          type="checkbox"
-                          checked={isAllVisibleSelected}
-                          onChange={toggleSelectAllVisibleProducts}
-                        />
-                      </th>
-                      <th className="py-3 px-2">상품 정보</th>
-                      <th className="py-3 px-2 text-right">가격</th>
-                      <th className="py-3 px-2 text-center">수량</th>
-                      <th className="py-3 px-2 text-center">상태</th>
-                      <th className="py-3 px-2 text-right">관리</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredProducts.map((product) => (
-                      <tr key={product.id} className="border-b border-gray-50 hover:bg-gray-50 group">
-                        <td className="py-4 px-2">
-                          <input
-                            type="checkbox"
-                            checked={selectedProductIds.includes(product.id)}
-                            onChange={() => toggleProductSelection(product.id)}
-                          />
-                        </td>
-                        <td className="py-4 px-2">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded bg-gray-100 overflow-hidden border border-gray-200 flex-shrink-0">
-                              {product.image ? <img src={product.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon size={16} /></div>}
-                            </div>
-                            <div>
-                              <div className="font-medium text-gray-700 text-sm">{product.name}</div>
-                              <div className="text-xs text-gray-400">{product.sub_category || product.category}</div>
-                            </div>
+                {isReorderMode ? (
+                  <div className="space-y-4">
+                    <div className="px-4 py-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-sm">
+                      드래그해서 순서를 변경한 뒤 저장을 눌러주세요. 카테고리/검색을 변경하면 편집 모드가 종료됩니다.
+                    </div>
+                    <div className="space-y-2">
+                      {reorderItems.map((product) => (
+                        <div
+                          key={product.id}
+                          draggable
+                          onDragStart={() => handleDragStart(product.id)}
+                          onDragOver={handleDragOver}
+                          onDrop={() => handleDrop(product.id)}
+                          onDragEnd={handleDragEnd}
+                          className={`flex items-center gap-4 p-3 border rounded-lg bg-white shadow-sm transition ${
+                            draggingProductId === product.id ? 'opacity-60' : 'hover:border-purple-300'
+                          }`}
+                        >
+                          <GripVertical className="text-gray-400" size={18} />
+                          <div className="w-12 h-12 rounded bg-gray-100 overflow-hidden border border-gray-200 flex-shrink-0">
+                            {product.image ? (
+                              <img src={product.image} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                <ImageIcon size={16} />
+                              </div>
+                            )}
                           </div>
-                        </td>
-                        <td className="py-4 px-2 text-right text-sm font-medium">
-                          {product.sale_price ? (
-                            <div>
-                              <span className="text-red-500 font-bold">₩{product.sale_price.toLocaleString()}</span>
-                              <div className="text-xs text-gray-400 line-through">₩{product.price.toLocaleString()}</div>
-                            </div>
-                          ) : (
-                            <span>₩{product.price.toLocaleString()}</span>
-                          )}
-                        </td>
-                        <td className="py-4 px-2 text-center text-sm text-gray-500">{product.stock_quantity === 0 ? <span className="text-red-500">품절</span> : `${product.stock_quantity}개`}</td>
-                        <td className="py-4 px-2 text-center"><span className={`text-xs px-2 py-1 rounded-full ${product.status === 'active' ? 'text-blue-600 bg-blue-50' : 'text-gray-500 bg-gray-100'}`}>{product.status === 'active' ? '판매 중' : '숨김'}</span></td>
-                        <td className="py-4 px-2 text-right"><button onClick={() => openEditModal(product)} className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs rounded hover:bg-gray-200 transition-colors">편집</button></td>
+                          <div className="flex-1">
+                            <div className="text-sm font-semibold text-gray-800">{product.name}</div>
+                            <div className="text-xs text-gray-400">{product.sub_category || product.category}</div>
+                          </div>
+                          <div className="text-sm font-bold text-gray-700">
+                            ₩{(product.sale_price || product.price).toLocaleString()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-gray-100 text-gray-400 text-xs uppercase">
+                        <th className="py-3 px-2 w-10">
+                          <input
+                            ref={selectAllRef}
+                            type="checkbox"
+                            checked={isAllVisibleSelected}
+                            onChange={toggleSelectAllVisibleProducts}
+                          />
+                        </th>
+                        <th className="py-3 px-2">상품 정보</th>
+                        <th className="py-3 px-2 text-right">가격</th>
+                        <th className="py-3 px-2 text-center">수량</th>
+                        <th className="py-3 px-2 text-center">상태</th>
+                        <th className="py-3 px-2 text-right">관리</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {filteredProducts.map((product) => (
+                        <tr key={product.id} className="border-b border-gray-50 hover:bg-gray-50 group">
+                          <td className="py-4 px-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedProductIds.includes(product.id)}
+                              onChange={() => toggleProductSelection(product.id)}
+                            />
+                          </td>
+                          <td className="py-4 px-2">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded bg-gray-100 overflow-hidden border border-gray-200 flex-shrink-0">
+                                {product.image ? <img src={product.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon size={16} /></div>}
+                              </div>
+                              <div>
+                                <div className="font-medium text-gray-700 text-sm">{product.name}</div>
+                                <div className="text-xs text-gray-400">{product.sub_category || product.category}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-4 px-2 text-right text-sm font-medium">
+                            {product.sale_price ? (
+                              <div>
+                                <span className="text-red-500 font-bold">₩{product.sale_price.toLocaleString()}</span>
+                                <div className="text-xs text-gray-400 line-through">₩{product.price.toLocaleString()}</div>
+                              </div>
+                            ) : (
+                              <span>₩{product.price.toLocaleString()}</span>
+                            )}
+                          </td>
+                          <td className="py-4 px-2 text-center text-sm text-gray-500">{product.stock_quantity === 0 ? <span className="text-red-500">품절</span> : `${product.stock_quantity}개`}</td>
+                          <td className="py-4 px-2 text-center"><span className={`text-xs px-2 py-1 rounded-full ${product.status === 'active' ? 'text-blue-600 bg-blue-50' : 'text-gray-500 bg-gray-100'}`}>{product.status === 'active' ? '판매 중' : '숨김'}</span></td>
+                          <td className="py-4 px-2 text-right"><button onClick={() => openEditModal(product)} className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs rounded hover:bg-gray-200 transition-colors">편집</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </div>
           </div>
@@ -820,6 +987,17 @@ export const Admin = () => {
                     </div>
                   </div>
                 </div>
+              </div>
+              <div className="pt-4 border-t border-gray-100">
+                <label className="block text-sm font-medium text-gray-700 mb-2">상품 요약 설명</label>
+                <textarea
+                  value={productFormData.short_description}
+                  onChange={e => setProductFormData({ ...productFormData, short_description: e.target.value })}
+                  rows={4}
+                  placeholder="상품 상세페이지 상단에 표시되는 요약 설명을 입력하세요."
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg outline-none resize-y"
+                />
+                <p className="text-xs text-gray-400 mt-1">상세페이지 이미지 오른쪽 영역에 표시됩니다.</p>
               </div>
               <div className="pt-4 border-t border-gray-100">
                 <label className="block text-sm font-medium text-gray-700 mb-2">상세정보</label>
