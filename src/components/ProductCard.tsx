@@ -120,7 +120,7 @@ export const ProductCard = ({
       <div className="absolute top-2 right-2 z-10 flex flex-col gap-2 transition-opacity opacity-100 lg:opacity-0 lg:group-hover:opacity-100">
         <button
           onClick={handleQuickAction}
-          className="w-8 h-8 text-black rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
+          className="w-8 h-8 text-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
           style={{ backgroundColor: accentColor }}
         >
           {mode === 'SHOP' ? <ShoppingCart size={16} strokeWidth={2.5} /> : <Plus size={20} strokeWidth={3} />}
