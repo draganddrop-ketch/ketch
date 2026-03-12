@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ShoppingCart, Search, User, UserPlus, X, LogOut, UserCircle, Menu } from 'lucide-react';
@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useSection } from '../context/SectionContext';
 import { AnnouncementBar } from './AnnouncementBar';
+import { supabase } from '../lib/supabase';
 
 interface HeaderProps {
   cartCount?: number;
@@ -27,6 +28,11 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [allProducts, setAllProducts] = useState<any[]>([]);
+  const [allCategories, setAllCategories] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<{ categoryName: string; categorySlug: string; section: string; products: any[] }[]>([]);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const logoWidthVal = settings?.logo_width || 120;
   const logoWidthStr = typeof logoWidthVal === 'number' ? `${logoWidthVal}px` : logoWidthVal;
@@ -38,10 +44,82 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
 
   const handleLogoClick = () => { navigate('/'); if (onLogoClick) onLogoClick(); };
   const handleSectionChange = (section: 'SHOP' | 'BUILDER') => { setCurrentSection(section); if (location.pathname !== '/') navigate('/'); };
-  const handleSearchChange = (value: string) => { setSearchQuery(value); if (onSearchChange) onSearchChange(value); };
-  const handleSearchSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') { navigate(`/?search=${encodeURIComponent(searchQuery)}`); setShowSearch(false); } };
-  const handleSearchToggle = () => { setShowSearch(!showSearch); if (showSearch) { setSearchQuery(''); if (onSearchChange) onSearchChange(''); } };
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+    if (onSearchChange) onSearchChange(value);
+    if (!value.trim()) { setSearchResults([]); return; }
+    const q = value.toLowerCase();
+    const grouped: { [key: string]: any[] } = {};
+    allProducts.forEach(p => {
+      if (p.status === 'hidden') return;
+      if (!p.name.toLowerCase().includes(q) && !(p.sub_category || '').toLowerCase().includes(q)) return;
+      const catIds: string[] = p.category_ids || (p.category ? [p.category] : []);
+      catIds.forEach(slug => {
+        const cat = allCategories.find((c: any) => c.slug === slug);
+        const key = cat ? cat.id : slug;
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(p);
+      });
+    });
+    const results = Object.entries(grouped).map(([key, prods]) => {
+      const cat = allCategories.find((c: any) => c.id === key || c.slug === key);
+      return { categoryName: cat?.name || key, categorySlug: cat?.slug || key, section: cat?.section || '', products: prods };
+    });
+    setSearchResults(results);
+  }, [allProducts, allCategories, onSearchChange]);
+
+  const handleSearchToggle = () => {
+    if (showSearch) {
+      setShowSearch(false);
+      setSearchQuery('');
+      setSearchResults([]);
+      if (onSearchChange) onSearchChange('');
+    } else {
+      setShowSearch(true);
+      setTimeout(() => searchInputRef.current?.focus(), 50);
+    }
+  };
+
+  const handleResultClick = (product: any, categorySlug: string, section: string) => {
+    setShowSearch(false);
+    setSearchQuery('');
+    setSearchResults([]);
+    const sectionParam = section === 'BUILDER' ? 'builder' : 'shop';
+    setCurrentSection(section as any);
+    navigate(`/?section=${sectionParam}&category=${categorySlug}&product=${product.id}`);
+  };
+
+  const handleSearchSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') { handleSearchToggle(); }
+  };
   const handleMobileLinkClick = (path: string) => { navigate(path); setIsMobileMenuOpen(false); };
+
+  // 외부 클릭 시 검색창 닫기
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowSearch(false);
+        setSearchQuery('');
+        setSearchResults([]);
+      }
+    };
+    if (showSearch) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showSearch]);
+
+  // 상품 및 카테고리 데이터 로드
+  useEffect(() => {
+    const fetchData = async () => {
+      const [{ data: products }, { data: categories }] = await Promise.all([
+        supabase.from('products').select('id, name, image, price, sale_price, category, category_ids, sub_category, status').order('display_order', { ascending: true }),
+        supabase.from('categories').select('id, name, slug, section').order('display_order', { ascending: true }),
+      ]);
+      if (products) setAllProducts(products);
+      if (categories) setAllCategories(categories);
+    };
+    fetchData();
+  }, []);
 
   useEffect(() => {
     const updateHeaderOffset = () => {
@@ -123,21 +201,79 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
             </div>
           </div>
 
-          <div className="flex items-center shrink-0 z-20">
-            <div className="flex items-center gap-4">
-               <button onClick={handleSearchToggle} style={{ color: navColor }}><Search size={22} /></button>
+          <div className="flex items-center shrink-0 z-20" ref={searchRef}>
+            <div className="flex items-center gap-4 relative">
+              {/* 검색창 - 돋보기 왼쪽에 인라인으로 표시 */}
+              {showSearch && (
+                <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 flex items-center animate-fade-in" style={{ minWidth: '280px', maxWidth: '480px', width: '35vw' }}>
+                  <div className="flex items-center w-full border px-3 py-1.5" style={{ backgroundColor: globalBg, borderColor: borderColor }}>
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => handleSearchChange(e.target.value)}
+                      onKeyDown={handleSearchSubmit}
+                      placeholder="Search products..."
+                      className="flex-1 bg-transparent focus:outline-none text-sm"
+                      style={{ color: navColor }}
+                    />
+                    <button onClick={handleSearchToggle} style={{ color: navColor }} className="ml-2 opacity-60 hover:opacity-100 transition-opacity flex-shrink-0">
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  {/* 검색 결과 드롭다운 */}
+                  {searchQuery.trim() && (
+                    <div className="absolute top-full right-0 left-0 mt-1 border overflow-y-auto z-[999] shadow-2xl" style={{ backgroundColor: globalBg, borderColor: borderColor, maxHeight: '60vh' }}>
+                      {searchResults.length === 0 ? (
+                        <div className="px-4 py-6 text-center text-sm opacity-50" style={{ color: navColor }}>검색 결과가 없습니다</div>
+                      ) : (
+                        searchResults.map(group => (
+                          <div key={group.categorySlug + group.section}>
+                            {/* 카테고리 헤더 */}
+                            <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest border-b flex items-center gap-2" style={{ color: navColor, borderColor: borderColor, opacity: 0.5 }}>
+                              <span className="opacity-60">{group.section}</span>
+                              <span>·</span>
+                              <span>{group.categoryName}</span>
+                              <span className="ml-auto opacity-60">{group.products.length}</span>
+                            </div>
+                            {/* 상품 목록 */}
+                            {group.products.map(product => (
+                              <button
+                                key={product.id}
+                                onClick={() => handleResultClick(product, group.categorySlug, group.section)}
+                                className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:opacity-70"
+                                style={{ backgroundColor: globalBg }}
+                              >
+                                <div className="w-9 h-9 flex-shrink-0 overflow-hidden border" style={{ borderColor: borderColor }}>
+                                  {product.image ? (
+                                    <img src={product.image} alt={product.name} className="w-full h-full object-contain" />
+                                  ) : (
+                                    <div className="w-full h-full opacity-20" style={{ backgroundColor: navColor }} />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium truncate" style={{ color: navColor }}>{product.name}</div>
+                                  <div className="text-[11px] opacity-50 truncate" style={{ color: navColor }}>{product.sub_category || product.category}</div>
+                                </div>
+                                <div className="text-sm font-bold flex-shrink-0" style={{ color: accentColor }}>
+                                  ₩{(product.sale_price || product.price)?.toLocaleString()}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+               <button onClick={handleSearchToggle} style={{ color: showSearch ? accentColor : navColor }} className="transition-colors"><Search size={22} /></button>
                <button onClick={() => setIsMobileMenuOpen(true)} style={{ color: navColor }}><Menu size={24} /></button>
             </div>
           </div>
         </div>
 
-        {showSearch && (
-          <div className="border-t animate-fade-in" style={{ backgroundColor: globalBg, borderColor: borderColor }}>
-            <div className="w-full px-4 md:px-6 py-4">
-              <input type="text" value={searchQuery} onChange={(e) => handleSearchChange(e.target.value)} onKeyDown={handleSearchSubmit} placeholder="Search products..." className="w-full border px-4 py-3 focus:outline-none transition-colors" style={{ backgroundColor: 'transparent', color: navColor, borderColor: borderColor }} autoFocus />
-            </div>
-          </div>
-        )}
       </div>
 
       {menuOverlay && typeof document !== 'undefined' ? createPortal(menuOverlay, document.body) : null}
