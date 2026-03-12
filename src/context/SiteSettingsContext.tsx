@@ -9,6 +9,7 @@ interface SiteSettings {
   share_title: string | null;
   share_description: string | null;
   share_image_url: string | null;
+  kakao_js_key: string | null;
   banner_height: number;
   shop_banner_images: string[] | null;
   builder_banner_images: string[] | null;
@@ -152,7 +153,7 @@ export const SiteSettingsProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <SiteSettingsContext.Provider value={{ settings, loading, refreshSettings, getBorderStyle }}>
-      {children}
+      {loading ? null : children}
     </SiteSettingsContext.Provider>
   );
 };
