@@ -64,14 +64,11 @@ export const CategoryTabs = ({ activeCategory, onCategoryChange }: CategoryTabsP
                 key={category.id}
                 onClick={() => onCategoryChange(category.slug)}
                 className="py-2 md:py-4 text-sm font-medium uppercase tracking-widest whitespace-nowrap transition-colors relative"
-                style={{ 
-                  color: isActive ? accentColor : navColor // ✅ 설정된 폰트 컬러 적용
-                }}
+                style={{ color: isActive ? accentColor : navColor }}
+                onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = accentColor; }}
+                onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = navColor; }}
               >
                 {category.name}
-                {isActive && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ backgroundColor: accentColor }} />
-                )}
               </button>
             );
           })}
