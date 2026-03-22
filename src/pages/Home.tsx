@@ -333,10 +333,7 @@ export const Home = () => {
         <Header
           cartCount={0}
           onSearchChange={setSearchQuery}
-          onLogoClick={() => {
-            closeProductDetail();
-            clearCategorySelection();
-          }}
+          onLogoClick={() => navigate('/')}
         />
       </div>
       
