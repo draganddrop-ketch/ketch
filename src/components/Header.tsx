@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ShoppingCart, Search, User, UserPlus, X, LogOut, UserCircle, Menu } from 'lucide-react';
@@ -43,13 +43,17 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
   const borderColor = settings?.layout_border_color || 'rgba(255, 255, 255, 0.3)';
 
   const handleLogoClick = () => { navigate('/'); if (onLogoClick) onLogoClick(); };
-  const handleSectionChange = (section: 'SHOP' | 'BUILDER') => { setCurrentSection(section); if (location.pathname !== '/') navigate('/'); };
+  const handleSectionChange = (section: 'SHOP' | 'BUILDER') => { setCurrentSection(section); navigate('/shop'); };
 
-  const handleSearchChange = useCallback((value: string) => {
+  const handleSearchChange = (value: string) => {
     setSearchQuery(value);
     if (onSearchChange) onSearchChange(value);
-    if (!value.trim()) { setSearchResults([]); return; }
-    const q = value.toLowerCase();
+  };
+
+  // 실시간 검색 - searchQuery 또는 데이터 변경 시 실행
+  useEffect(() => {
+    if (!searchQuery.trim()) { setSearchResults([]); return; }
+    const q = searchQuery.toLowerCase();
     const grouped: { [key: string]: any[] } = {};
     allProducts.forEach(p => {
       if (p.status === 'hidden') return;
@@ -67,7 +71,7 @@ export const Header = ({ onSearchChange, onLogoClick }: HeaderProps) => {
       return { categoryName: cat?.name || key, categorySlug: cat?.slug || key, section: cat?.section || '', products: prods };
     });
     setSearchResults(results);
-  }, [allProducts, allCategories, onSearchChange]);
+  }, [searchQuery, allProducts, allCategories]);
 
   const handleSearchToggle = () => {
     if (showSearch) {
