@@ -2,15 +2,26 @@ import { useState, useEffect } from 'react';
 import { Upload, X, Palette, Type, Image as ImageIcon, Link as LinkIcon, Layout, Settings, Monitor, Columns } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-type ConfigTab = 'BUILDER' | 'SHOP' | 'STYLE' | 'GLOBAL';
+type ConfigTab = 'MAIN' | 'BUILDER' | 'SHOP' | 'STYLE' | 'GLOBAL';
 
 interface Category { id: string; name: string; slug: string; section: 'SHOP' | 'BUILDER'; }
 
 export const MainPageManager = () => {
-  const [activeTab, setActiveTab] = useState<ConfigTab>('SHOP');
+  const [activeTab, setActiveTab] = useState<ConfigTab>('MAIN');
   const [message, setMessage] = useState('');
   const [uploading, setUploading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+
+  // 0. 메인페이지 설정
+  const [mainSelected, setMainSelected] = useState<string[]>([]);
+  const [mainSlot1Images, setMainSlot1Images] = useState<string[]>([]);
+  const [mainSlot2Images, setMainSlot2Images] = useState<string[]>([]);
+  const [mainSlot3Images, setMainSlot3Images] = useState<string[]>([]);
+  const [mainBannerTransition, setMainBannerTransition] = useState('slide');
+  const [mainBannerSpeed, setMainBannerSpeed] = useState(3000);
+  const [mainSlot1Files, setMainSlot1Files] = useState<File[]>([]);
+  const [mainSlot2Files, setMainSlot2Files] = useState<File[]>([]);
+  const [mainSlot3Files, setMainSlot3Files] = useState<File[]>([]);
 
   // 1. 빌더 설정
   const [builderSelected, setBuilderSelected] = useState<string[]>([]);
@@ -66,6 +77,14 @@ export const MainPageManager = () => {
     setCanvasBgColor(data.canvas_bg_color || '#FFFFFF');
     setCanvasBgImage(data.canvas_bg_image || '');
 
+    // MAIN 슬롯 데이터 로드 (없으면 SHOP 슬롯으로 폴백)
+    setMainSelected(Array.isArray(data.main_home_categories) ? data.main_home_categories.map(String) : (Array.isArray(data.shop_home_categories) ? data.shop_home_categories.map(String) : []));
+    setMainSlot1Images(data.main_slot1_images || data.shop_slot1_images || []);
+    setMainSlot2Images(data.main_slot2_images || data.shop_slot2_images || []);
+    setMainSlot3Images(data.main_slot3_images || data.shop_slot3_images || []);
+    setMainBannerTransition(data.main_banner_transition || data.banner_transition || 'slide');
+    setMainBannerSpeed(data.main_banner_speed || data.banner_speed || 3000);
+
     // ✅ SHOP 슬롯 데이터 로드
     setShopSelected(Array.isArray(data.shop_home_categories) ? data.shop_home_categories.map(String) : []);
     setSlot1Images(data.shop_slot1_images || []);
@@ -113,7 +132,25 @@ export const MainPageManager = () => {
     try {
       let updateData: any = {};
 
-      if (type === 'BUILDER') {
+      if (type === 'MAIN') {
+        let newSlot1 = [...mainSlot1Images];
+        for (const file of mainSlot1Files) { const url = await uploadImage(file); if (url) newSlot1.push(url); }
+        let newSlot2 = [...mainSlot2Images];
+        for (const file of mainSlot2Files) { const url = await uploadImage(file); if (url) newSlot2.push(url); }
+        let newSlot3 = [...mainSlot3Images];
+        for (const file of mainSlot3Files) { const url = await uploadImage(file); if (url) newSlot3.push(url); }
+        updateData = {
+          main_home_categories: mainSelected,
+          main_slot1_images: newSlot1,
+          main_slot2_images: newSlot2,
+          main_slot3_images: newSlot3,
+          main_banner_transition: mainBannerTransition,
+          main_banner_speed: mainBannerSpeed,
+        };
+        setMainSlot1Images(newSlot1); setMainSlot1Files([]);
+        setMainSlot2Images(newSlot2); setMainSlot2Files([]);
+        setMainSlot3Images(newSlot3); setMainSlot3Files([]);
+      } else if (type === 'BUILDER') {
         let newImages = [...builderBannerImages];
         for (const file of builderBannerFiles) { const url = await uploadImage(file); if (url) newImages.push(url); }
         updateData = { 
@@ -182,11 +219,45 @@ export const MainPageManager = () => {
       {message && <div className={`mb-4 px-4 py-3 rounded-lg ${message.includes('❌') ? 'bg-red-50 text-red-800' : 'bg-green-50 text-green-800'}`}>{message}</div>}
 
       <div className="flex border-b border-gray-200 mb-6 overflow-x-auto">
-        {['SHOP', 'BUILDER', 'STYLE', 'GLOBAL'].map((tab) => (
-          <button key={tab} onClick={() => setActiveTab(tab as ConfigTab)} className={`px-6 py-3 font-semibold whitespace-nowrap transition-colors ${activeTab === tab ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600 hover:text-gray-800'}`}>
-            {tab === 'STYLE' ? 'PRODUCT STYLE' : tab === 'GLOBAL' ? 'GLOBAL STYLE' : `${tab} CONFIG`}
+        {(['MAIN', 'SHOP', 'BUILDER', 'STYLE', 'GLOBAL'] as ConfigTab[]).map((tab) => (
+          <button key={tab} onClick={() => setActiveTab(tab)} className={`px-6 py-3 font-semibold whitespace-nowrap transition-colors ${activeTab === tab ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600 hover:text-gray-800'}`}>
+            {tab === 'MAIN' ? '🏠 MAIN PAGE' : tab === 'STYLE' ? 'PRODUCT STYLE' : tab === 'GLOBAL' ? 'GLOBAL STYLE' : `${tab} CONFIG`}
           </button>
         ))}
+      </div>
+
+      {activeTab === 'MAIN' && (
+        <div className="space-y-8">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+            🏠 메인페이지 설정입니다. 로고 클릭 시 보이는 페이지예요. 별도 설정이 없으면 SHOP 설정이 기본으로 표시됩니다.
+          </div>
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <h4 className="text-md font-bold text-gray-800 mb-4 flex items-center gap-2"><Columns size={18}/> 3-Column Banner Sliders</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {renderSlotManager("Slot 1 (Left)", mainSlot1Images, setMainSlot1Images, setMainSlot1Files)}
+              {renderSlotManager("Slot 2 (Center)", mainSlot2Images, setMainSlot2Images, setMainSlot2Files)}
+              {renderSlotManager("Slot 3 (Right)", mainSlot3Images, setMainSlot3Images, setMainSlot3Files)}
+            </div>
+            <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg mt-4">
+              <div><label className="block text-sm font-medium mb-1">Transition Effect</label><select value={mainBannerTransition} onChange={(e) => setMainBannerTransition(e.target.value)} className="w-full border rounded p-2"><option value="slide">Slide</option><option value="fade">Fade</option></select></div>
+              <div><label className="block text-sm font-medium mb-1">Slide Speed (ms)</label><input type="number" value={mainBannerSpeed} onChange={(e) => setMainBannerSpeed(Number(e.target.value))} className="w-full border rounded p-2" /></div>
+            </div>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <h4 className="text-md font-bold text-gray-800 mb-4 flex items-center gap-2"><Layout size={18}/> Main Bottom Categories</h4>
+            <p className="text-xs text-gray-500 mb-3">메인페이지 하단에 노출할 카테고리를 선택하세요 (SHOP 카테고리 기준)</p>
+            <div className="border rounded p-4 max-h-40 overflow-y-auto grid grid-cols-2 gap-2">
+              {categories.filter(c => c.section === 'SHOP').map(c => (
+                <label key={c.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                  <input type="checkbox" checked={mainSelected.includes(String(c.id))} onChange={() => setMainSelected(prev => prev.includes(String(c.id)) ? prev.filter(x => x !== String(c.id)) : [...prev, String(c.id)])} className="w-4 h-4 rounded text-blue-600" />
+                  <span className="text-sm font-medium">{c.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <button onClick={() => handleSave('MAIN')} disabled={uploading} className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 w-full font-bold text-lg">{uploading ? 'Saving...' : 'Save MAIN PAGE Config'}</button>
+        </div>
+      )}
       </div>
 
       {activeTab === 'SHOP' && (
