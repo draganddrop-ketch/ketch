@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import { LandingPage } from './pages/LandingPage';
 import { Home } from './pages/Home';
 import { ProductDetail } from './pages/ProductDetail';
 import { Admin } from './pages/Admin';
@@ -95,7 +96,8 @@ function App() {
               <Router>
                 <Routes>
                   {/* 일반 고객용 페이지 */}
-                  <Route path="/" element={<Home />} />
+                  <Route path="/" element={<LandingPage />} />
+                  <Route path="/shop" element={<Home />} />
                   <Route path="/product/:id" element={<ProductDetail />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/signup" element={<Signup />} />
