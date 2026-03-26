@@ -136,23 +136,16 @@ export const LandingPage = () => {
     );
   };
 
-  // 메인 배너 슬롯 3개 렌더링 (main_slot* 또는 shop_slot* 폴백)
+  // 메인 배너 슬롯 2개 렌더링 (main_slot* 또는 shop_slot* 폴백)
   const renderMainLayout = () => {
     const slot1 = (settings as any)?.main_slot1_images?.length
       ? (settings as any).main_slot1_images
-      : settings?.shop_slot1_images?.length
-      ? settings.shop_slot1_images
-      : ['https://via.placeholder.com/550x700/222/fff?text=Slot+1'];
+      : settings?.shop_slot1_images?.length ? settings.shop_slot1_images
+      : ['https://via.placeholder.com/800x1000/222/fff?text=Slot+1'];
     const slot2 = (settings as any)?.main_slot2_images?.length
       ? (settings as any).main_slot2_images
-      : settings?.shop_slot2_images?.length
-      ? settings.shop_slot2_images
-      : ['https://via.placeholder.com/550x700/333/fff?text=Slot+2'];
-    const slot3 = (settings as any)?.main_slot3_images?.length
-      ? (settings as any).main_slot3_images
-      : settings?.shop_slot3_images?.length
-      ? settings.shop_slot3_images
-      : ['https://via.placeholder.com/550x700/444/fff?text=Slot+3'];
+      : settings?.shop_slot2_images?.length ? settings.shop_slot2_images
+      : ['https://via.placeholder.com/800x1000/333/fff?text=Slot+2'];
 
     const transition = (settings as any)?.main_banner_transition || settings?.banner_transition || 'slide';
     const speed = (settings as any)?.main_banner_speed || settings?.banner_speed || 3000;
@@ -160,7 +153,7 @@ export const LandingPage = () => {
 
     const commonSwiperProps = {
       modules: [Autoplay, EffectFade, Pagination],
-      effect: transition === 'fade' ? 'fade' : 'slide',
+      effect: transition === 'fade' ? ('fade' as const) : ('slide' as const),
       autoplay: { delay: speed, disableOnInteraction: false },
       pagination: { clickable: true, dynamicBullets: true },
       loop: true,
@@ -168,42 +161,33 @@ export const LandingPage = () => {
     };
 
     return (
-      <div className="w-full pt-4 px-4 md:px-6">
-        {/* 3-Column Banners */}
+      <div className="w-full">
+        {/* 2컬럼 풀화면 배너 */}
         <div className="w-full mb-16">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="w-full h-auto overflow-hidden rounded-sm">
-              <Swiper {...commonSwiperProps}>
-                {slot1.map((src: string, idx: number) => (
-                  <SwiperSlide key={`m1-${idx}`}>
-                    <img src={src} className="w-full h-auto object-contain" alt="Main Slot 1" />
-                  </SwiperSlide>
-                ))}
-              </Swiper>
-            </div>
-            <div className="w-full h-auto overflow-hidden rounded-sm">
-              <Swiper {...commonSwiperProps}>
-                {slot2.map((src: string, idx: number) => (
-                  <SwiperSlide key={`m2-${idx}`}>
-                    <img src={src} className="w-full h-auto object-contain" alt="Main Slot 2" />
-                  </SwiperSlide>
-                ))}
-              </Swiper>
-            </div>
-            <div className="w-full h-auto overflow-hidden rounded-sm">
-              <Swiper {...commonSwiperProps}>
-                {slot3.map((src: string, idx: number) => (
-                  <SwiperSlide key={`m3-${idx}`}>
-                    <img src={src} className="w-full h-auto object-contain" alt="Main Slot 3" />
-                  </SwiperSlide>
-                ))}
-              </Swiper>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2">
+            {[slot1, slot2].map((slot, si) => (
+              <div key={si} className="w-full overflow-hidden cursor-pointer" style={{ aspectRatio: '4/5' }}
+                onClick={() => navigate('/shop')}>
+                <Swiper {...commonSwiperProps}>
+                  {slot.map((src: string, idx: number) => (
+                    <SwiperSlide key={`ms${si}-${idx}`}>
+                      <div className="w-full h-full" style={{ aspectRatio: '4/5' }}>
+                        <img
+                          src={src}
+                          className="w-full h-full object-cover object-center"
+                          alt={`Main Slot ${si + 1}`}
+                        />
+                      </div>
+                    </SwiperSlide>
+                  ))}
+                </Swiper>
+              </div>
+            ))}
           </div>
         </div>
 
         {/* 카테고리 섹션 */}
-        <div className="w-full mt-12 pb-20">
+        <div className="w-full px-4 md:px-6 pb-20">
           {renderCategorySections(mainCategories)}
         </div>
       </div>

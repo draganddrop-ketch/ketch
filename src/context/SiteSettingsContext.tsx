@@ -38,16 +38,84 @@ interface SiteSettings {
   product_price_size: number;
   logo_url: string | null;
   logo_width: string | null;
+  symbol_url: string | null;
+  symbol_size: number | null;
+  logo_padding_top: number | null;
+  logo_padding_bottom: number | null;
   favicon_url: string | null;
   accent_color: string;
   bg_color: string; 
   font_family: string;
+  // Typography 세부 설정 (폰트, 사이즈, 컬러, 두께, 자간)
+  font_nav: string | null;
+  font_nav_size: number | null;
+  font_nav_color: string | null;
+  font_nav_weight: string | null;
+  font_nav_spacing: number | null;
+  font_category: string | null;
+  font_category_size: number | null;
+  font_category_color: string | null;
+  font_category_weight: string | null;
+  font_category_spacing: number | null;
+  // compact 모드 카테고리
+  font_compact_cat: string | null;
+  font_compact_cat_size: number | null;
+  font_compact_cat_color: string | null;
+  font_compact_cat_weight: string | null;
+  font_compact_cat_spacing: number | null;
+  // 상품 카드
+  font_card_name: string | null;
+  font_card_name_size: number | null;
+  font_card_name_color: string | null;
+  font_card_name_weight: string | null;
+  font_card_name_spacing: number | null;
+  font_card_cat: string | null;
+  font_card_cat_size: number | null;
+  font_card_cat_color: string | null;
+  font_card_cat_weight: string | null;
+  font_card_price: string | null;
+  font_card_price_size: number | null;
+  font_card_price_color: string | null;
+  font_card_price_weight: string | null;
+  // 상품 상세
+  font_detail_title: string | null;
+  font_detail_title_size: number | null;
+  font_detail_title_color: string | null;
+  font_detail_title_weight: string | null;
+  font_detail_title_spacing: number | null;
+  font_detail_body: string | null;
+  font_detail_body_size: number | null;
+  font_detail_body_color: string | null;
+  font_detail_body_weight: string | null;
   announcement_text: string;
   announcement_bg_color: string;
   announcement_text_color: string;
   announcement_height: number;
   announcement_speed: number;
   announcement_width_type: 'FULL' | 'FIXED';
+  // Floating Footer Bar
+  floating_footer_instagram_url: string | null;
+  floating_footer_text: string | null;
+  floating_footer_terms_content: string | null;
+  floating_footer_guide_content: string | null;
+  floating_footer_privacy_content: string | null;
+  floating_footer_font: string | null;
+  floating_footer_font_size: number | null;
+  floating_footer_font_color: string | null;
+  floating_footer_padding_y: number | null;
+  floating_footer_padding_x: number | null;
+  // Product Detail Page Style
+  detail_page_padding_top: number | null;
+  detail_page_max_width: number | null;
+  detail_price_font: string | null;
+  detail_price_size: number | null;
+  detail_price_color: string | null;
+  detail_price_weight: string | null;
+  detail_category_font: string | null;
+  detail_category_size: number | null;
+  detail_category_color: string | null;
+  // Header
+  header_bg_color: string | null;
 }
 
 interface SiteSettingsContextType {
@@ -90,11 +158,62 @@ export const SiteSettingsProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (settings) {
       const root = document.documentElement;
-      root.style.setProperty('--main-font', settings.font_family || 'JetBrains Mono');
+      const f = settings.font_family || 'Pretendard';
+      root.style.setProperty('--main-font', f);
       root.style.setProperty('--global-bg', settings.global_bg_color || '#000000');
       root.style.setProperty('--global-text', settings.global_text_color || '#FFFFFF');
       root.style.setProperty('--accent-color', settings.accent_color);
       root.style.setProperty('--nav-text', settings.nav_text_color || '#FFFFFF');
+
+      // Typography CSS 변수 적용
+      const navColorVal = settings.nav_text_color || '#FFFFFF';
+      root.style.setProperty('--font-nav', `'${settings.font_nav || f}', sans-serif`);
+      root.style.setProperty('--font-nav-size', `${settings.font_nav_size || 15}px`);
+      root.style.setProperty('--font-nav-color', settings.font_nav_color || navColorVal);
+      root.style.setProperty('--font-nav-weight', settings.font_nav_weight || '700');
+      root.style.setProperty('--font-nav-spacing', `${settings.font_nav_spacing ?? 0.05}em`);
+
+      root.style.setProperty('--font-category', `'${settings.font_category || f}', sans-serif`);
+      root.style.setProperty('--font-category-size', `${settings.font_category_size || 13}px`);
+      root.style.setProperty('--font-category-color', settings.font_category_color || navColorVal);
+      root.style.setProperty('--font-category-weight', settings.font_category_weight || '500');
+      root.style.setProperty('--font-category-spacing', `${settings.font_category_spacing ?? 0.1}em`);
+
+      root.style.setProperty('--font-compact-cat', `'${settings.font_compact_cat || settings.font_category || f}', sans-serif`);
+      root.style.setProperty('--font-compact-cat-size', `${settings.font_compact_cat_size || settings.font_category_size || 12}px`);
+      root.style.setProperty('--font-compact-cat-color', settings.font_compact_cat_color || settings.font_category_color || navColorVal);
+      root.style.setProperty('--font-compact-cat-weight', settings.font_compact_cat_weight || settings.font_category_weight || '500');
+      root.style.setProperty('--font-compact-cat-spacing', `${settings.font_compact_cat_spacing ?? settings.font_category_spacing ?? 0.1}em`);
+
+      root.style.setProperty('--font-card-name', `'${settings.font_card_name || f}', sans-serif`);
+      root.style.setProperty('--font-card-name-size', `${settings.font_card_name_size || 16}px`);
+      root.style.setProperty('--font-card-name-color', settings.font_card_name_color || settings.product_text_color || '#FFFFFF');
+      root.style.setProperty('--font-card-name-weight', settings.font_card_name_weight || '700');
+      root.style.setProperty('--font-card-name-spacing', `${settings.font_card_name_spacing ?? 0}em`);
+
+      root.style.setProperty('--font-card-cat', `'${settings.font_card_cat || f}', sans-serif`);
+      root.style.setProperty('--font-card-cat-size', `${settings.font_card_cat_size || 12}px`);
+      root.style.setProperty('--font-card-cat-color', settings.font_card_cat_color || settings.product_sub_text_color || '#9ca3af');
+      root.style.setProperty('--font-card-cat-weight', settings.font_card_cat_weight || '400');
+
+      root.style.setProperty('--font-card-price', `'${settings.font_card_price || f}', sans-serif`);
+      root.style.setProperty('--font-card-price-size', `${settings.font_card_price_size || 14}px`);
+      root.style.setProperty('--font-card-price-color', settings.font_card_price_color || settings.product_accent_color || '#34d399');
+      root.style.setProperty('--font-card-price-weight', settings.font_card_price_weight || '600');
+
+      root.style.setProperty('--font-detail-title', `'${settings.font_detail_title || f}', sans-serif`);
+      root.style.setProperty('--font-detail-title-size', `${settings.font_detail_title_size || 32}px`);
+      root.style.setProperty('--font-detail-title-color', settings.font_detail_title_color || settings.global_text_color || '#FFFFFF');
+      root.style.setProperty('--font-detail-title-weight', settings.font_detail_title_weight || '700');
+      root.style.setProperty('--font-detail-title-spacing', `${settings.font_detail_title_spacing ?? 0}em`);
+
+      root.style.setProperty('--font-detail-body', `'${settings.font_detail_body || f}', sans-serif`);
+      root.style.setProperty('--font-detail-body-size', `${settings.font_detail_body_size || 14}px`);
+      root.style.setProperty('--font-detail-body-color', settings.font_detail_body_color || settings.global_text_color || '#FFFFFF');
+      root.style.setProperty('--font-detail-body-weight', settings.font_detail_body_weight || '400');
+      // 로고 패딩
+      root.style.setProperty('--logo-padding-top', `${settings.logo_padding_top ?? 8}px`);
+      root.style.setProperty('--logo-padding-bottom', `${settings.logo_padding_bottom ?? 8}px`);
 
       const faviconHref = settings.favicon_url || '';
       let faviconLink = document.querySelector("link[rel='icon']") as HTMLLinkElement | null;

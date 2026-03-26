@@ -1,6 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { LandingPage } from './pages/LandingPage';
 import { Home } from './pages/Home';
 import { ProductDetail } from './pages/ProductDetail';
 import { Admin } from './pages/Admin';
@@ -14,7 +13,9 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { SectionProvider } from './context/SectionContext';
 import { CanvasProvider } from './context/CanvasContext';
+import { LikeProvider } from './context/LikeContext';
 import { supabase } from './lib/supabase';
+import { InfoPage } from './pages/InfoPage';
 
 const SUPER_ADMIN_EMAILS = ['jeongyong01@naver.com'].map((email) => email.toLowerCase().trim());
 
@@ -93,16 +94,18 @@ function App() {
         <CartProvider>
           <SectionProvider>
             <CanvasProvider>
-              <Router>
-                <Routes>
-                  {/* 일반 고객용 페이지 */}
-                  <Route path="/" element={<LandingPage />} />
-                  <Route path="/shop" element={<Home />} />
-                  <Route path="/product/:id" element={<ProductDetail />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/signup" element={<Signup />} />
-                  <Route path="/cart" element={<Cart />} />
-                  <Route path="/profile" element={<Profile />} />
+              <LikeProvider>
+                <Router>
+                  <Routes>
+                    {/* 일반 고객용 페이지 */}
+                    <Route path="/" element={<Home />} />
+                    <Route path="/shop" element={<Navigate to="/" replace />} />
+                    <Route path="/product/:id" element={<ProductDetail />} />
+                    <Route path="/page/:slug" element={<InfoPage />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/signup" element={<Signup />} />
+                    <Route path="/cart" element={<Cart />} />
+                    <Route path="/profile" element={<Profile />} />
                   
                   {/* 관리자 로그인 페이지 */}
                   <Route path="/admin/login" element={<AdminLogin />} />
@@ -117,7 +120,8 @@ function App() {
                     } 
                   />
                 </Routes>
-              </Router>
+                </Router>
+              </LikeProvider>
             </CanvasProvider>
           </SectionProvider>
         </CartProvider>

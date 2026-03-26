@@ -13,8 +13,8 @@ type ReviewItem = {
   title?: string | null;
   content: string;
   images?: string[] | null;
-  created_at: string;
   is_hidden?: boolean;
+  created_at: string;
 };
 
 type QuestionItem = {
@@ -478,4 +478,3 @@ export const ProductTabs = ({ product }: ProductTabsProps) => {
     </div>
   );
 };
-

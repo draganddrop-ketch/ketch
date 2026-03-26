@@ -8,19 +8,20 @@ export interface KeyringItem {
   price: number;
   sale_price?: number | null;
   stock_quantity?: number;
-  status?: 'active' | 'sold_out' | 'hidden';
+  status?: 'active' | 'sold_out' | 'hidden' | 'soldout';
   image?: string;
   image_url?: string;
   dropzone_image_url?: string | null;
   description?: string | null;
+  short_description?: string | null;
   gallery_images?: string[] | null;
   is_best?: boolean;
   is_new?: boolean;
-
-  // ✅ [추가됨] 실제 사이즈(cm) 및 이미지 분석 데이터
-  real_width_cm?: number;    // 사용자가 입력한 실제 가로 길이 (cm)
-  object_px_width?: number;  // 투명 배경 제외한 물체의 실제 픽셀 너비
-  image_width?: number;      // 원본 이미지의 전체 가로 픽셀 너비
+  display_order?: number | null;
+  product_type?: 'SHOP' | 'BUILDER' | 'BOTH' | null;
+  real_width_cm?: number;
+  object_px_width?: number;
+  image_width?: number;
 }
 
 export interface SelectedItem extends KeyringItem {

@@ -117,7 +117,7 @@ export const Admin = () => {
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
 
   const [productFormData, setProductFormData] = useState<any>({
-    name: '', section: 'SHOP', categories: [], sub_category: '', price: '', sale_price: '', stock_quantity: '0', status: 'active', description: '', short_description: '', is_best: false, is_new: false, real_width_cm: '', object_px_width: 0, image_width: 0,
+    name: '', section: 'SHOP', categories: [], sub_category: '', price: '', sale_price: '', stock_quantity: '0', status: 'active', description: '', short_description: '', is_best: false, is_new: false, real_width_cm: '', object_px_width: 0, image_width: 0, product_type: ['BUILDER'],
   });
   const [mainImageFile, setMainImageFile] = useState<File | null>(null);
   const [mainImagePreviewUrl, setMainImagePreviewUrl] = useState<string>('');
@@ -194,7 +194,7 @@ export const Admin = () => {
   
   const openAddModal = () => { 
     setEditingProduct(null); 
-    setProductFormData({ name: '', section: 'SHOP', categories: [], sub_category: '', price: '', sale_price: '', stock_quantity: '100', status: 'active', description: '', short_description: '', is_best: false, is_new: false, real_width_cm: '', object_px_width: 0, image_width: 0 }); 
+    setProductFormData({ name: '', section: 'SHOP', categories: [], sub_category: '', price: '', sale_price: '', stock_quantity: '100', status: 'active', description: '', short_description: '', is_best: false, is_new: false, real_width_cm: '', object_px_width: 0, image_width: 0, product_type: ['BUILDER'] }); 
     setMainImageFile(null);
     setMainImagePreviewUrl(''); 
     setDropzoneImageFile(null);
@@ -345,12 +345,16 @@ export const Admin = () => {
   const openEditModal = (product: any) => { 
     setEditingProduct(product); 
     const savedCategories = product.category_ids && product.category_ids.length > 0 ? product.category_ids : (product.category ? [product.category] : []); 
-    let section: 'SHOP' | 'BUILDER' = 'SHOP'; 
-    if (savedCategories.length > 0) { const foundCat = categories.find(c => c.slug === savedCategories[0]); if (foundCat) section = foundCat.section; } 
-    
+    // product_type: DB에서 배열 또는 문자열로 올 수 있으므로 정규화
+    let productType: string[] = [];
+    if (Array.isArray(product.product_type)) productType = product.product_type;
+    else if (product.product_type === 'BOTH') productType = ['SHOP', 'BUILDER'];
+    else if (product.product_type) productType = [product.product_type];
+    else productType = ['BUILDER'];
+
     setProductFormData({ 
       name: product.name, 
-      section: section, 
+      section: 'SHOP',
       categories: savedCategories, 
       sub_category: product.sub_category || '', 
       price: product.price.toString(), 
@@ -363,7 +367,8 @@ export const Admin = () => {
       is_new: product.is_new || false, 
       real_width_cm: product.real_width_cm ? product.real_width_cm.toString() : '', 
       object_px_width: product.object_px_width || 0, 
-      image_width: product.image_width || 0 
+      image_width: product.image_width || 0,
+      product_type: productType,
     }); 
     setMainImageFile(null);
     setMainImagePreviewUrl(product.image || '');
@@ -449,10 +454,9 @@ export const Admin = () => {
         is_best: productFormData.is_best, 
         is_new: productFormData.is_new, 
         real_width_cm: productFormData.real_width_cm ? parseFloat(productFormData.real_width_cm) : null, 
-        
-        // ✅ 여기가 핵심: 자동 분석된 값을 저장
         object_px_width: finalObjectWidth, 
-        image_width: finalImageWidth, 
+        image_width: finalImageWidth,
+        product_type: productFormData.product_type || ['BUILDER'],
       }; 
       
       let error; 
@@ -627,6 +631,7 @@ export const Admin = () => {
   const handleAddCategory = async () => { if (!newCategoryName.trim()) return; const slug = newCategoryName.trim().toLowerCase().replace(/\s+/g, '-'); const sectionCategories = categories.filter(c => c.section === newCategorySection); const maxOrder = sectionCategories.length > 0 ? Math.max(...sectionCategories.map(c => c.display_order)) : 0; await supabase.from('categories').insert({ name: newCategoryName.trim(), slug, section: newCategorySection, display_order: maxOrder + 1, is_hidden: false }); setNewCategoryName(''); fetchCategories(); };
   const handleDeleteCategory = async (id: string) => { if (!confirm('삭제하시겠습니까?')) return; await supabase.from('categories').delete().eq('id', id); fetchCategories(); };
   const handleUpdateCategoryName = async (id: string) => { if (!editingCategoryName.trim()) return; const slug = editingCategoryName.trim().toLowerCase().replace(/\s+/g, '-'); await supabase.from('categories').update({ name: editingCategoryName, slug }).eq('id', id); setEditingCategoryId(null); fetchCategories(); };
+  const handleToggleCategoryHidden = async (cat: Category) => { await supabase.from('categories').update({ is_hidden: !cat.is_hidden }).eq('id', cat.id); fetchCategories(); };
   const handleMoveCategory = async (index: number, direction: 'up' | 'down', list: Category[]) => { const curr = list[index]; const target = direction === 'up' ? list[index - 1] : list[index + 1]; if (!target) return; await supabase.from('categories').update({ display_order: target.display_order }).eq('id', curr.id); await supabase.from('categories').update({ display_order: curr.display_order }).eq('id', target.id); fetchCategories(); };
   const handleLogout = async () => { await signOut(); navigate('/admin/login'); };
 
@@ -667,12 +672,11 @@ export const Admin = () => {
               <div className="p-5 border-b border-gray-100"><h2 className="font-bold text-gray-800 flex items-center gap-2"><Package className="text-purple-600" size={18} /> 상품 관리</h2></div>
               <div className="p-3 space-y-1 flex-1 overflow-y-auto">
                 <button onClick={() => setActiveCategory('all')} className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-sm ${activeCategory === 'all' ? 'bg-white shadow-sm text-purple-700 font-medium' : 'text-gray-600 hover:bg-gray-100'}`}><span>전체 상품</span><span className="text-xs bg-gray-200 px-1.5 rounded-full text-gray-600">{getCategoryCount('all')}</span></button>
-                {['SHOP', 'BUILDER'].map(section => (
-                  <div key={section}><div className="mt-4 mb-1 px-3 text-xs font-bold text-gray-400 uppercase tracking-wider">{section}</div>
-                    {categories.filter(c => c.section === section).map((cat) => (
-                      <button key={cat.id} onClick={() => setActiveCategory(cat.id)} className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-sm ${activeCategory === cat.id ? 'bg-white shadow-sm text-purple-700 font-medium' : 'text-gray-600 hover:bg-gray-100'}`}><span>{cat.name}</span><span className="text-xs text-gray-200 px-1.5 rounded-full text-gray-500">{getCategoryCount(cat.slug)}</span></button>
-                    ))}
-                  </div>
+                {categories.map((cat) => (
+                  <button key={cat.id} onClick={() => setActiveCategory(cat.id)} className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-sm ${activeCategory === cat.id ? 'bg-white shadow-sm text-purple-700 font-medium' : 'text-gray-600 hover:bg-gray-100'}`}>
+                    <span>{cat.name}</span>
+                    <span className="text-xs bg-gray-100 px-1.5 rounded-full text-gray-500">{getCategoryCount(cat.slug)}</span>
+                  </button>
                 ))}
               </div>
               <div className="p-4 border-t border-gray-200"><button onClick={() => setIsCategoryManagerOpen(true)} className="w-full py-2 text-xs border border-gray-300 rounded bg-white hover:bg-gray-50 text-gray-600 font-medium flex items-center justify-center gap-1"><Settings size={14}/> 카테고리 순서/설정 관리</button></div>
@@ -855,7 +859,46 @@ export const Admin = () => {
               <div className="grid grid-cols-2 gap-6">
                 <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">상품명 *</label><input type="text" required value={productFormData.name} onChange={e => setProductFormData({...productFormData, name: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500" /></div>
                 <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">추가 카테고리명 (Sub Category)</label><input type="text" value={productFormData.sub_category} onChange={e => setProductFormData({...productFormData, sub_category: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500" placeholder="예: BEST ITEM, NEW ARRIVAL" /></div>
-                <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-2">카테고리 선택 (중복 가능) *</label><div className="flex gap-2 mb-3"><button type="button" onClick={() => setProductFormData({...productFormData, section: 'SHOP'})} className={`flex-1 py-2 rounded-lg font-bold text-sm ${productFormData.section === 'SHOP' ? 'bg-purple-100 text-purple-700 ring-2 ring-purple-500' : 'bg-gray-100 text-gray-500'}`}>SHOP</button><button type="button" onClick={() => setProductFormData({...productFormData, section: 'BUILDER'})} className={`flex-1 py-2 rounded-lg font-bold text-sm ${productFormData.section === 'BUILDER' ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-500' : 'bg-gray-100 text-gray-500'}`}>BUILDER</button></div><div className="grid grid-cols-3 gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">{categories.filter(c => c.section === productFormData.section).length === 0 ? <div className="col-span-3 text-center text-gray-400 text-sm">등록된 카테고리가 없습니다.</div> : categories.filter(c => c.section === productFormData.section).map(c => (<label key={c.id} className="flex items-center gap-2 cursor-pointer p-2 hover:bg-white rounded transition-colors"><input type="checkbox" className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500" checked={productFormData.categories.includes(c.slug)} onChange={() => toggleCategorySelection(c.slug)} /><span className="text-sm text-gray-700">{c.name}</span></label>))}</div></div>
+                <div className="col-span-2">
+                  {/* 상품 타입 선택 */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">상품 타입 * <span className="text-xs text-gray-400">(복수 선택 가능)</span></label>
+                    <div className="flex gap-3">
+                      {['SHOP', 'BUILDER'].map(t => {
+                        const checked = (productFormData.product_type || []).includes(t);
+                        return (
+                          <label key={t} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border-2 cursor-pointer font-bold text-sm transition-all ${checked ? (t === 'SHOP' ? 'bg-purple-50 text-purple-700 border-purple-500' : 'bg-blue-50 text-blue-700 border-blue-500') : 'bg-gray-50 text-gray-400 border-gray-200'}`}>
+                            <input type="checkbox" className="hidden" checked={checked}
+                              onChange={() => {
+                                const cur: string[] = productFormData.product_type || [];
+                                const next = checked ? cur.filter((x: string) => x !== t) : [...cur, t];
+                                setProductFormData({...productFormData, product_type: next});
+                              }}
+                            />
+                            {t === 'SHOP' ? '🛒 SHOP (카트)' : '🎨 BUILDER (드랍존)'}
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {(productFormData.product_type || []).length === 0 && <p className="text-xs text-red-500 mt-1">최소 1개 이상 선택해주세요.</p>}
+                  </div>
+
+                  {/* 카테고리 선택 - 전체 단일 목록 */}
+                  <label className="block text-sm font-medium text-gray-700 mb-2">카테고리 선택 (중복 가능) *</label>
+                  <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="grid grid-cols-3 gap-2">
+                      {categories.map(c => (
+                        <label key={c.id} className="flex items-center gap-2 cursor-pointer p-2 hover:bg-white rounded transition-colors">
+                          <input type="checkbox" className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                            checked={productFormData.categories.includes(c.slug)}
+                            onChange={() => toggleCategorySelection(c.slug)}
+                          />
+                          <span className="text-sm text-gray-700">{c.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">정상 판매가 (₩) *</label><input type="number" required value={productFormData.price} onChange={e => setProductFormData({...productFormData, price: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none" placeholder="0" /></div>
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">할인 적용가 (₩) <span className="text-xs text-red-500 font-normal">(선택)</span></label><input type="number" value={productFormData.sale_price} onChange={e => setProductFormData({...productFormData, sale_price: e.target.value})} className="w-full px-3 py-2 border border-red-200 rounded-lg outline-none focus:border-red-500 bg-red-50/20" placeholder="입력 시 할인가 적용" /></div>
                 
@@ -1026,22 +1069,75 @@ export const Admin = () => {
       {isCategoryManagerOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white">
           <div className="w-full max-w-5xl h-full flex flex-col p-8">
-            <div className="flex justify-between items-center mb-8"><h2 className="text-3xl font-bold text-gray-900">카테고리 관리</h2><button onClick={() => setIsCategoryManagerOpen(false)} className="px-6 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700">닫기</button></div>
-            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 mb-8"><h3 className="text-sm font-bold text-gray-500 uppercase mb-4">새 카테고리 추가</h3><div className="flex gap-4"><input type="text" placeholder="카테고리 이름" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} className="flex-1 px-4 py-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500" /><div className="flex bg-white rounded-lg border border-gray-300 overflow-hidden"><button onClick={() => setNewCategorySection('SHOP')} className={`px-6 py-2 font-medium transition-colors ${newCategorySection === 'SHOP' ? 'bg-purple-100 text-purple-700' : 'hover:bg-gray-50 text-gray-600'}`}>SHOP</button><div className="w-px bg-gray-300"></div><button onClick={() => setNewCategorySection('BUILDER')} className={`px-6 py-2 font-medium transition-colors ${newCategorySection === 'BUILDER' ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-50 text-gray-600'}`}>BUILDER</button></div><button onClick={handleAddCategory} className="px-8 py-3 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700">+ 추가하기</button></div></div>
-            <div className="flex-1 overflow-auto space-y-8">
-              {['SHOP', 'BUILDER'].map(section => (
-                <div key={section}>
-                  <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2"><Tag size={20} className={section === 'SHOP' ? "text-purple-600" : "text-blue-600"}/> {section} 카테고리</h3>
-                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                    {categories.filter(c => c.section === section).map((cat, idx, arr) => (
-                      <div key={cat.id} className="flex items-center justify-between p-4 border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                        <div className="flex items-center gap-4"><div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold ${section === 'SHOP' ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600'}`}>{idx + 1}</div>{editingCategoryId === cat.id ? (<div className="flex gap-2"><input type="text" value={editingCategoryName} onChange={e => setEditingCategoryName(e.target.value)} className="px-2 py-1 border rounded" /><button onClick={() => handleUpdateCategoryName(cat.id)} className="p-1 bg-green-100 text-green-700 rounded"><Save size={16}/></button></div>) : (<div><div className="font-bold text-gray-800 text-lg">{cat.name}</div><div className="text-xs text-gray-400">{getCategoryCount(cat.slug)}개 상품</div></div>)}</div>
-                        <div className="flex items-center gap-2"><div className="flex flex-col gap-1 mr-4"><button onClick={() => handleMoveCategory(idx, 'up', arr)} disabled={idx === 0} className="p-1 text-gray-400 hover:text-purple-600 disabled:opacity-30"><ChevronUp size={20}/></button><button onClick={() => handleMoveCategory(idx, 'down', arr)} disabled={idx === arr.length - 1} className="p-1 text-gray-400 hover:text-purple-600 disabled:opacity-30"><ChevronDown size={20}/></button></div><button onClick={() => { setEditingCategoryId(cat.id); setEditingCategoryName(cat.name); }} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg">수정</button><button onClick={() => handleDeleteCategory(cat.id)} className="px-3 py-2 bg-red-50 text-red-500 rounded-lg"><Trash2 size={18}/></button></div>
-                      </div>
-                    ))}
-                  </div>
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-3xl font-bold text-gray-900">카테고리 관리</h2>
+              <button onClick={() => setIsCategoryManagerOpen(false)} className="px-6 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700">닫기</button>
+            </div>
+            {/* 새 카테고리 추가 */}
+            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 mb-6">
+              <h3 className="text-sm font-bold text-gray-500 uppercase mb-4">새 카테고리 추가</h3>
+              <div className="flex gap-4 flex-wrap">
+                <input type="text" placeholder="카테고리 이름" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} className="flex-1 min-w-[180px] px-4 py-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500" />
+                <div className="flex bg-white rounded-lg border border-gray-300 overflow-hidden">
+                  <button onClick={() => setNewCategorySection('SHOP')} className={`px-5 py-2 font-medium transition-colors ${newCategorySection === 'SHOP' ? 'bg-purple-100 text-purple-700' : 'hover:bg-gray-50 text-gray-600'}`}>SHOP</button>
+                  <div className="w-px bg-gray-300"></div>
+                  <button onClick={() => setNewCategorySection('BUILDER')} className={`px-5 py-2 font-medium transition-colors ${newCategorySection === 'BUILDER' ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-50 text-gray-600'}`}>BUILDER</button>
                 </div>
-              ))}
+                <button onClick={handleAddCategory} className="px-8 py-3 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700">+ 추가하기</button>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">💡 메뉴 비노출 설정은 추가 후 목록에서 변경할 수 있어요.</p>
+            </div>
+            {/* 통합 카테고리 목록 */}
+            <div className="flex-1 overflow-auto">
+              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                <div className="grid grid-cols-[40px_1fr_90px_100px_80px_40px_40px_80px_60px] gap-0 px-4 py-3 bg-gray-50 border-b border-gray-100 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                  <div>#</div><div>이름</div><div>섹션</div><div>상품수</div><div>메뉴노출</div><div></div><div></div><div></div><div></div>
+                </div>
+                {categories.map((cat, idx, arr) => (
+                  <div key={cat.id} className="grid grid-cols-[40px_1fr_90px_100px_80px_40px_40px_80px_60px] gap-0 items-center px-4 py-3 border-b border-gray-100 last:border-0 hover:bg-gray-50">
+                    <div className="text-sm font-bold text-gray-400">{idx + 1}</div>
+                    <div>
+                      {editingCategoryId === cat.id ? (
+                        <div className="flex gap-2">
+                          <input type="text" value={editingCategoryName} onChange={e => setEditingCategoryName(e.target.value)} className="px-2 py-1 border rounded text-sm w-36" />
+                          <button onClick={() => handleUpdateCategoryName(cat.id)} className="p-1 bg-green-100 text-green-700 rounded"><Save size={14}/></button>
+                        </div>
+                      ) : (
+                        <div>
+                          <div className="font-semibold text-gray-800">{cat.name}</div>
+                          <div className="text-xs text-gray-400">{cat.slug}</div>
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${cat.section === 'SHOP' ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600'}`}>{cat.section}</span>
+                    </div>
+                    <div className="text-sm text-gray-500">{getCategoryCount(cat.slug)}개</div>
+                    {/* 메뉴 노출 토글 */}
+                    <div>
+                      <button
+                        onClick={() => handleToggleCategoryHidden(cat)}
+                        className={`text-xs px-2 py-1 rounded-full font-medium transition-colors ${cat.is_hidden ? 'bg-gray-100 text-gray-400' : 'bg-green-50 text-green-600'}`}
+                        title={cat.is_hidden ? '메뉴에 숨김 (클릭 시 노출)' : '메뉴에 노출 (클릭 시 숨김)'}
+                      >
+                        {cat.is_hidden ? '비노출' : '노출중'}
+                      </button>
+                    </div>
+                    <div>
+                      <button onClick={() => handleMoveCategory(idx, 'up', arr)} disabled={idx === 0} className="p-1 text-gray-400 hover:text-purple-600 disabled:opacity-20"><ChevronUp size={18}/></button>
+                    </div>
+                    <div>
+                      <button onClick={() => handleMoveCategory(idx, 'down', arr)} disabled={idx === arr.length - 1} className="p-1 text-gray-400 hover:text-purple-600 disabled:opacity-20"><ChevronDown size={18}/></button>
+                    </div>
+                    <div>
+                      <button onClick={() => { setEditingCategoryId(cat.id); setEditingCategoryName(cat.name); }} className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded text-xs hover:bg-gray-200">수정</button>
+                    </div>
+                    <div>
+                      <button onClick={() => handleDeleteCategory(cat.id)} className="p-1.5 bg-red-50 text-red-400 rounded hover:bg-red-100"><Trash2 size={14}/></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

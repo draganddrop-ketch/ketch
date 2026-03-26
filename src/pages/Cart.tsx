@@ -69,7 +69,10 @@ export const Cart = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {cartItems.map((item) => (
+                {cartItems.map((item) => {
+                  const itemQty = item.quantity ?? 1;
+                  const itemTotal = item.price * itemQty;
+                  return (
                   <div
                     key={item.id}
                     className={`border p-6 flex gap-6 rounded-lg relative group ${item.items && item.items.length > 0 ? 'cursor-pointer' : ''}`}
@@ -91,12 +94,14 @@ export const Cart = () => {
                     </div>
                     <div className="flex-1">
                       <h3 className="font-bold text-lg mb-1">{item.name}</h3>
-                      <p className="text-sm mb-2 opacity-60">{item.items ? `${item.items.length}개 부자재 조합` : '단품 상품'}</p>
-                      <div className="text-cyan-400 font-bold text-xl">₩{item.price.toLocaleString()}</div>
+                      <p className="text-sm mb-2 opacity-60">
+                        {item.items ? `${item.items.length}개 부자재 조합` : '단품 상품'} · 수량 {itemQty}개
+                      </p>
+                      <div className="text-cyan-400 font-bold text-xl">₩{itemTotal.toLocaleString()}</div>
                     </div>
                     <button onClick={(e) => { e.stopPropagation(); removeFromCart(item.id); }} className="opacity-50 hover:opacity-100 hover:text-red-400 absolute top-6 right-6 transition-all"><Trash2 size={20} /></button>
                   </div>
-                ))}
+                )})}
               </div>
             )}
           </div>

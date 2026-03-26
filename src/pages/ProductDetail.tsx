@@ -1,26 +1,33 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ShoppingCart, CreditCard, Plus, Layers, Minus, X } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, CreditCard, Plus, Layers, Minus, X, Share2, Heart } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Header } from '../components/Header';
 import { KeyringItem } from '../types';
 import { useCart } from '../context/CartContext';
+import { useLike } from '../context/LikeContext';
+import { useAuth } from '../context/AuthContext';
 import { useCanvas } from '../context/CanvasContext';
 import { useSection } from '../context/SectionContext';
 import { useSiteSettings } from '../context/SiteSettingsContext'; // ✅
 import { CanvasBuilder } from '../components/CanvasBuilder';
 import { ProductTabs } from '../components/ProductTabs.tsx';
+import { ShareModal } from '../components/ShareModal';
 
 export const ProductDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addToCart } = useCart();
+  const { user } = useAuth();
+  const { isLiked, toggleLike } = useLike();
   const { currentSection } = useSection();
   const { addItemToCanvas, canvasItems, setCanvasItems } = useCanvas();
   const { settings, getBorderStyle } = useSiteSettings(); // ✅
   const [product, setProduct] = useState<KeyringItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState<string>('');
+  const [quantity, setQuantity] = useState(1);
+  const [isShareOpen, setIsShareOpen] = useState(false);
   const [isDesktopDropzoneMinimized, setIsDesktopDropzoneMinimized] = useState(false);
   const [isMobileDropzoneOpen, setIsMobileDropzoneOpen] = useState(false);
   const [viewportSize, setViewportSize] = useState(() => ({
@@ -46,6 +53,7 @@ export const ProductDetail = () => {
   const mobileDropzoneHeight = Math.round(baseDropzoneHeight * mobileDropzoneScale);
 
   useEffect(() => { fetchProduct(); }, [id]);
+  useEffect(() => { setQuantity(1); }, [product?.id]);
   useEffect(() => {
     const handleResize = () => setViewportSize({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener('resize', handleResize);
@@ -62,20 +70,47 @@ export const ProductDetail = () => {
         ...data,
         image: thumbnailImage,
         image_url: thumbnailImage,
-        dropzone_image_url: data.dropzone_image_url || thumbnailImage
+        dropzone_image_url: data.dropzone_image_url || thumbnailImage,
+        short_description: data.short_description || ''
       };
       setProduct(formatted);
       setActiveImage(formatted.image);
     } catch (error) { navigate('/'); } finally { setLoading(false); }
   };
 
-  const handleAddToCart = () => { if (!product) return; addToCart({ id: product.id, name: product.name, price: product.sale_price || product.price, image: product.image, quantity: 1 }); alert('Added to Cart!'); };
+  const handleAddToCart = () => {
+    if (!product) return;
+    addToCart({
+      id: product.id,
+      name: product.name,
+      price: product.sale_price || product.price,
+      image: product.image,
+      quantity
+    });
+    alert('Added to Cart!');
+  };
   const handleOrder = () => { handleAddToCart(); navigate('/cart'); };
   const handleAddToDropZone = () => { if (!product) return; addItemToCanvas(product); };
   const handleCanvasItemsChange = (items: any[]) => setCanvasItems(items as any);
+  const handleLike = () => {
+    if (!product) return;
+    if (!user) {
+      alert('로그인이 필요한 기능입니다.');
+      navigate('/login');
+      return;
+    }
+    toggleLike(product.id);
+  };
+
 
   if (loading) return <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: bgColor, color: textColor }}>Loading...</div>;
   if (!product) return null;
+  const liked = isLiked(product.id);
+  const summaryText = (product.short_description || '').trim();
+  const shareTitle = product.name;
+  const shareDescription = summaryText || settings?.share_description || '';
+  const shareImage = product.image || settings?.share_image_url || settings?.logo_url || '';
+  const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: bgColor, color: textColor }}>
@@ -98,18 +133,71 @@ export const ProductDetail = () => {
             )}
           </div>
           <div className="space-y-8">
-            <div>
-              <div className="flex items-center gap-4 mb-2">
-                <span className="px-3 py-1 bg-zinc-800 rounded-full text-xs font-medium text-gray-300">{product.category}</span>
-                {product.status === 'soldout' && <span className="px-3 py-1 bg-red-900/50 text-red-200 rounded-full text-xs border border-red-800">SOLD OUT</span>}
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-4 mb-2">
+                    <span className="px-3 py-1 bg-zinc-800 rounded-full text-xs font-medium text-gray-300">{product.category}</span>
+                    {product.status === 'soldout' && <span className="px-3 py-1 bg-red-900/50 text-red-200 rounded-full text-xs border border-red-800">SOLD OUT</span>}
+                  </div>
+                  <h1 className="font-bold" style={{ color: nameColor, fontFamily: 'var(--font-detail-title)', fontSize: 'var(--font-detail-title-size)' }}>{product.name}</h1>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsShareOpen(true)}
+                    className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50"
+                    aria-label="Share product"
+                  >
+                    <Share2 size={18} />
+                  </button>
+                  <button
+                    onClick={handleLike}
+                    className={`w-10 h-10 rounded-full border flex items-center justify-center transition ${liked ? 'bg-red-500 border-red-500 text-white' : 'border-gray-200 text-gray-500 hover:text-red-500'}`}
+                    aria-label="Like product"
+                  >
+                    <Heart size={18} fill={liked ? 'currentColor' : 'none'} />
+                  </button>
+                </div>
               </div>
-              <h1 className="text-4xl font-bold mb-4 font-mono" style={{ color: nameColor }}>{product.name}</h1>
               <div className="flex items-baseline gap-4">
                 <span className="text-2xl font-bold" style={{ color: accentColor }}>₩{(product.sale_price || product.price).toLocaleString()}</span>
                 {product.sale_price && <span className="text-lg line-through opacity-50">₩{product.price.toLocaleString()}</span>}
               </div>
             </div>
-            <div className="prose max-w-none"><p className="leading-relaxed whitespace-pre-wrap" style={{ color: textColor }}>{product.description}</p></div>
+
+            <div className="leading-relaxed whitespace-pre-wrap" style={{ color: textColor, fontFamily: 'var(--font-detail-body)', fontSize: 'var(--font-detail-body-size)' }}>
+              {summaryText || '상품 설명이 없습니다.'}
+            </div>
+
+            <div className="flex items-center justify-between border rounded-lg px-4 py-3" style={borderStyle}>
+              <span className="text-sm font-semibold">수량</span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setQuantity(prev => Math.max(1, prev - 1))}
+                  className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50"
+                  aria-label="Decrease quantity"
+                >
+                  <Minus size={16} />
+                </button>
+                <input
+                  type="number"
+                  min={1}
+                  value={quantity}
+                  onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value || '1', 10)))}
+                  className="w-14 text-center border border-gray-200 rounded-md py-1 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => setQuantity(prev => prev + 1)}
+                  className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50"
+                  aria-label="Increase quantity"
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
+            </div>
+
             <div className="space-y-3 pt-6 border-t" style={{ borderColor: borderStyle.borderColor }}>
               {currentSection === 'BUILDER' && (
                 <button onClick={handleAddToDropZone} disabled={product.status === 'soldout'} className="w-full py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold flex items-center justify-center gap-2 border border-zinc-700"><Plus size={20} /> ADD TO DROP ZONE</button>
@@ -191,6 +279,16 @@ export const ProductDetail = () => {
           )}
         </>
       )}
+
+      <ShareModal
+        open={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+        title={shareTitle}
+        description={shareDescription}
+        image={shareImage}
+        url={shareUrl}
+        kakaoKey={settings?.kakao_js_key || ''}
+      />
     </div>
   );
 };

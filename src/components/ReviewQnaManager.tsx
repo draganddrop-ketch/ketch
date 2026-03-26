@@ -217,7 +217,7 @@ export const ReviewQnaManager = () => {
                     </button>
                     <button
                       onClick={() => deleteQuestion(qna)}
-                      className="px-3 py-1.5 text-xs border border-red-200 text-red-600 rounded flex items-center gap-1"
+                      className="px-3 py-1.5 text-xs border border-red-200 text-red-6ㅋ00 rounded flex items-center gap-1"
                     >
                       <Trash2 size={14} /> 삭제
                     </button>

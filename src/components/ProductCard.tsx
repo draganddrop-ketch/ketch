@@ -6,24 +6,37 @@ import { useLike } from '../context/LikeContext';
 interface ProductCardProps {
   product: KeyringItem;
   onAddToCanvas: (product: KeyringItem) => void;
+  onAddToCart?: (product: KeyringItem) => void;
   onClick?: (product: KeyringItem) => void;
-  mode?: 'SHOP' | 'BUILDER';
-  /** * 'vertical': 기존 세로형 카드 (기본값)
-   * 'horizontal': 롤링 리스트용 가로형 카드 
-   */
-  variant?: 'vertical' | 'horizontal'; 
+  mode?: 'SHOP' | 'BUILDER'; // legacy - product_type 우선
+  variant?: 'vertical' | 'horizontal';
   customStyle?: {
     bg?: string; text?: string; subText?: string; accent?: string;
     nameSize?: number; catSize?: number; priceSize?: number;
   };
 }
 
+// product_type 헬퍼
+const isShop = (p: KeyringItem) => {
+  const t = p.product_type;
+  if (!t) return false;
+  if (Array.isArray(t)) return t.includes('SHOP');
+  return t === 'SHOP' || t === 'BOTH';
+};
+const isBuilder = (p: KeyringItem) => {
+  const t = p.product_type;
+  if (!t) return true; // 미설정은 기본 builder
+  if (Array.isArray(t)) return t.includes('BUILDER');
+  return t === 'BUILDER' || t === 'BOTH';
+};
+
 export const ProductCard = ({ 
   product, 
-  onAddToCanvas, 
+  onAddToCanvas,
+  onAddToCart,
   onClick, 
   mode = 'BUILDER', 
-  variant = 'vertical', // 기본값은 세로형
+  variant = 'vertical',
   customStyle 
 }: ProductCardProps) => {
   const navigate = useNavigate();
@@ -40,7 +53,8 @@ export const ProductCard = ({
   const catSize = customStyle?.catSize ? `${customStyle.catSize}px` : '12px';
   const priceSize = customStyle?.priceSize ? `${customStyle.priceSize}px` : '14px';
 
-  const handleCardClick = () => {
+const handleCardClick = () => {
+    console.log('🎯 Card clicked:', product.id, product.name);
     if (onClick) onClick(product);
     else navigate(`/product/${product.id}`);
   };
@@ -116,19 +130,33 @@ export const ProductCard = ({
       onMouseEnter={(e) => e.currentTarget.style.borderColor = accentColor}
       onMouseLeave={(e) => e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)'}
     >
-      {/* 우측 상단 플로팅 버튼 그룹 (장바구니 + 하트) */}
+      {/* 우측 상단 플로팅 버튼 그룹 */}
       <div className="absolute top-2 right-2 z-10 flex flex-col gap-2 transition-opacity opacity-100 lg:opacity-0 lg:group-hover:opacity-100">
+        {/* BUILDER 버튼 (+) */}
+        {isBuilder(product) && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onAddToCanvas(product); }}
+            className="w-8 h-8 text-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
+            style={{ backgroundColor: accentColor }}
+            title="드랍존에 추가"
+          >
+            <Plus size={20} strokeWidth={3} />
+          </button>
+        )}
+        {/* SHOP 버튼 (카트) */}
+        {isShop(product) && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onAddToCart ? onAddToCart(product) : onAddToCanvas(product); }}
+            className="w-8 h-8 text-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
+            style={{ backgroundColor: accentColor }}
+            title="장바구니에 추가"
+          >
+            <ShoppingCart size={16} strokeWidth={2.5} />
+          </button>
+        )}
+        {/* 하트 버튼 */}
         <button
-          onClick={handleQuickAction}
-          className="w-8 h-8 text-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
-          style={{ backgroundColor: accentColor }}
-        >
-          {mode === 'SHOP' ? <ShoppingCart size={16} strokeWidth={2.5} /> : <Plus size={20} strokeWidth={3} />}
-        </button>
-        
-        {/* 추가된 하트 버튼 */}
-        <button
-          onClick={handleLike}
+          onClick={(e) => { e.stopPropagation(); toggleLike(product.id); }}
           className={`w-8 h-8 rounded-full flex items-center justify-center border shadow-lg hover:scale-110 transition-transform ${
             liked ? 'bg-red-500 border-red-500 text-white' : 'bg-white border-gray-200 text-gray-400 hover:text-red-400'
           }`}
@@ -138,10 +166,10 @@ export const ProductCard = ({
       </div>
 
       <div className="p-3 pb-2">
-        <div className="font-bold mb-1 truncate" style={{ color: textColor, fontSize: nameSize }}>
+        <div className="font-bold mb-1 truncate" style={{ color: 'var(--font-card-name-color)', fontSize: `var(--font-card-name-size, ${nameSize})`, fontFamily: 'var(--font-card-name)', fontWeight: 'var(--font-card-name-weight)', letterSpacing: 'var(--font-card-name-spacing)' }}>
           {product.name}
         </div>
-        <div className="uppercase tracking-wider text-xs" style={{ color: subTextColor, fontSize: catSize }}>
+        <div className="uppercase text-xs" style={{ color: 'var(--font-card-cat-color)', fontSize: `var(--font-card-cat-size, ${catSize})`, fontFamily: 'var(--font-card-cat)', fontWeight: 'var(--font-card-cat-weight)' }}>
           {product.sub_category || product.category}
         </div>
       </div>
@@ -169,12 +197,12 @@ export const ProductCard = ({
             <div className="text-xs line-through" style={{ color: subTextColor }}>
               ₩{product.price.toLocaleString()}
             </div>
-            <div className="font-semibold" style={{ color: accentColor, fontSize: priceSize }}>
+            <div style={{ color: 'var(--font-card-price-color)', fontSize: `var(--font-card-price-size, ${priceSize})`, fontFamily: 'var(--font-card-price)', fontWeight: 'var(--font-card-price-weight)' }}>
               ₩{product.sale_price.toLocaleString()}
             </div>
           </div>
         ) : (
-          <div className="font-semibold" style={{ color: accentColor, fontSize: priceSize }}>
+          <div style={{ color: 'var(--font-card-price-color)', fontSize: `var(--font-card-price-size, ${priceSize})`, fontFamily: 'var(--font-card-price)', fontWeight: 'var(--font-card-price-weight)' }}>
             ₩{product.price.toLocaleString()}
           </div>
         )}

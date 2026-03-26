@@ -49,7 +49,7 @@ export const CategoryTabs = ({ activeCategory, onCategoryChange }: CategoryTabsP
     } catch (err) { console.error(err); }
   };
 
-  const filteredCategories = categories.filter(category => category.section === currentSection);
+  const filteredCategories = categories;
 
   return (
     // ✅ sticky 제거하여 스크롤 시 위로 사라짐
@@ -63,8 +63,12 @@ export const CategoryTabs = ({ activeCategory, onCategoryChange }: CategoryTabsP
               <button
                 key={category.id}
                 onClick={() => onCategoryChange(category.slug)}
-                className="py-2 md:py-4 text-sm font-medium uppercase tracking-widest whitespace-nowrap transition-colors relative"
-                style={{ color: isActive ? accentColor : navColor }}
+                className="py-2 md:py-4 font-medium uppercase tracking-widest whitespace-nowrap transition-colors relative"
+                style={{ 
+                  color: isActive ? accentColor : navColor,
+                  fontFamily: 'var(--font-category)',
+                  fontSize: 'var(--font-category-size)',
+                }}
                 onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = accentColor; }}
                 onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = navColor; }}
               >

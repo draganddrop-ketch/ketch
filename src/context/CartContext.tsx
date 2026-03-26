@@ -5,7 +5,9 @@ interface CartItem {
   name: string;
   price: number;
   image: string;
-  items: any[];
+  quantity?: number;
+  items?: any[];
+  canvasHeight?: number;
 }
 
 interface CartContextType {
@@ -49,7 +51,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const getTotalPrice = () => {
-    return cartItems.reduce((total, item) => total + item.price, 0);
+    return cartItems.reduce((total, item) => total + item.price * (item.quantity ?? 1), 0);
   };
 
   return (
