@@ -170,8 +170,8 @@ export const Header = ({ onSearchChange, onLogoClick, categories = [], activeCat
         <div
           className="w-full px-4 md:px-6 flex items-center justify-between transition-all duration-300"
           style={{
-            paddingTop: isCompact ? '6px' : `${logoPaddingTop}px`,
-            paddingBottom: isCompact ? '6px' : `${logoPaddingBottom}px`,
+            paddingTop: `${logoPaddingTop}px`,
+            paddingBottom: `${logoPaddingBottom}px`,
           }}
         >
           {/* 좌: 로고/심볼 */}
